@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-本文件为 Claude Code (claude.ai/code) 在此知识库中工作时提供通用指导。
+本文件为 Claude Code 在此知识库中工作时提供通用指导。
 
 ## 知识库概述
 
@@ -14,22 +14,25 @@
 
 ```
 AIBrain/
-├── CLAUDE.md                    # 本文件：通用 AI 助手指南
-├── .gitignore                   # Git 忽略规则
+├── CLAUDE.md                           # 本文件：通用 AI 助手指南
+├── .gitignore                          # Git 忽略规则
 │
-└── Compose/                     # 子项目：Compose 源码分析系列
-    ├── CLAUDE.md                # 子项目专属指南
-    ├── PLAN.md                  # 创作计划和进度
-    ├── README.md                # 项目介绍
-    ├── 01-compose-slottable-design.md
-    └── animations/              # 交互式动画
+└── Compose/                            # 子项目：Compose 源码分析系列
+    ├── CLAUDE.md                       # 子项目专属指南
+    ├── PLAN.md                         # 创作计划和进度
+    ├── README.md                       # 项目介绍
+    ├── 01-SlotTable的结构.md           # 第一篇
+    ├── 02-SlotTable与重组.md           # 第二篇
+    ├── 03-SlotTable到LayoutNode.md     # 第三篇
+    ├── 04-SubcomposeLayout与复用机制.md # 第四篇
+    └── animations/                     # 交互式动画（11个）
 ```
 
 ## 子项目列表
 
 | 目录 | 主题 | 状态 |
 |------|------|------|
-| `Compose/` | Jetpack Compose 源码分析 | 🟢 进行中 |
+| `Compose/` | Jetpack Compose 源码分析 | 🟢 进行中（4篇已完成） |
 
 ## 通用规范
 
@@ -60,20 +63,6 @@ AIBrain/
 | iframe 动画 | `> 💡 **交互动画**：下方动画演示了...` |
 | 代码块 | 添加注释说明用途，如 `// 停用时的处理` |
 
-```markdown
-<!-- ✅ 正确：表格有标题 -->
-**key 的影响**：
-
-| key 情况 | 滚动时的行为 |
-|---------|-------------|
-| 无 key | 按位置复用 |
-
-<!-- ❌ 错误：表格无标题 -->
-| key 情况 | 滚动时的行为 |
-|---------|-------------|
-| 无 key | 按位置复用 |
-```
-
 ### iframe 路径规则
 
 在 Markdown 中嵌入动画时，**必须使用绝对路径**：
@@ -95,7 +84,7 @@ AIBrain/
 ## Git 工作流
 
 ### 分支
-- 当前分支：`master`
+- 当前分支：`main`
 
 ### 提交规范
 - 使用中文提交信息
@@ -112,7 +101,6 @@ AIBrain/
 **遵循 macOS 文件夹命名规范**：
 - 单词首字母大写（Title Case）
 - 示例：`Compose/`、`Flutter/`、`Android/`
-- 避免使用小写连字符形式（如 ~~`compose-slottable`~~）
 
 ### 创建新子项目
 1. 创建子项目目录：`mkdir [ProjectName]`（首字母大写）
@@ -131,16 +119,6 @@ AIBrain/
 1. **查看子项目指南**：每个子项目有独立的 `CLAUDE.md`
 2. **跟踪进度**：使用子项目的 `PLAN.md`
 3. **保持一致**：遵循子项目的写作风格和结构
-
-### 常见任务
-
-**在子项目中工作**：
-- 先阅读子项目的 `CLAUDE.md` 和 `PLAN.md`
-- 遵循子项目的命名规范和结构
-
-**创建新子项目**：
-- 参考 `Compose/` 的结构
-- 创建完整的 `CLAUDE.md`、`README.md`、`PLAN.md`
 
 ### 路径约束
 - 知识库路径固定为 `/Users/tyrionguan/Documents/Obsidian Vault/AIBrain/`

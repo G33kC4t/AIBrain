@@ -12,33 +12,42 @@
 
 ```
 Compose/
-├── CLAUDE.md                               # 本文件：子项目工作指南
-├── PLAN.md                                 # 创作计划和进度跟踪
-├── README.md                               # 项目介绍文档
-├── 01-compose-slottable-design.md          # 第一篇：SlotTable 设计原理
-├── 01-compose-slottable-design-old.md      # 旧版本备份
-└── animations/                             # 交互式动画目录
-    ├── index.html                          # 动画索引页
-    ├── group-tree-storage.html             # SlotTable 存储可视化
-    └── gap-buffer-operations.html          # Gap Buffer 操作演示
+├── CLAUDE.md                           # 本文件：子项目工作指南
+├── PLAN.md                             # 创作计划和进度跟踪
+├── README.md                           # 项目介绍文档
+├── 01-SlotTable的结构.md               # 第一篇
+├── 02-SlotTable与重组.md               # 第二篇
+├── 03-SlotTable到LayoutNode.md         # 第三篇
+├── 04-SubcomposeLayout与复用机制.md     # 第四篇
+└── animations/                         # 交互式动画目录
+    ├── index.html                      # 动画索引页
+    ├── group-tree-storage.html         # SlotTable 存储可视化
+    ├── gap-buffer-operations.html      # Gap Buffer 操作演示
+    ├── group-info-types.html           # Group 类型与 groupInfo 字段
+    ├── slottable-recomposition.html    # 重组过程可视化
+    ├── key-matching.html               # Key 匹配机制
+    ├── key-change-reuse.html           # Key 变化与复用
+    ├── apply-changes-flow.html         # ApplyChanges 流程
+    ├── subcompose-lifecycle.html       # SubcomposeLayout 生命周期
+    ├── subcompose-reuse-pool.html      # 复用池机制
+    └── lazy-column-reuse.html          # LazyColumn 复用演示
 ```
 
 ## 文件命名规范
 
-- **文章文件**：`[序号]-compose-[主题].md`
-  - 例如：`01-compose-slottable-design.md`
-  - 例如：`02-compose-recomposition.md`
-- **备份文件**：原文件名 + `-old.md` 后缀
+- **文章文件**：`[序号]-[中文主题].md`
+  - 例如：`01-SlotTable的结构.md`
+  - 例如：`02-SlotTable与重组.md`
 - **动画文件**：`[描述性名称].html`（小写字母 + 连字符）
 
-## 系列文章规划
+## 系列文章
 
 | 序号 | 文件名 | 主题 | 状态 |
 |------|--------|------|------|
-| 01 | `01-compose-slottable-design.md` | 从 Composable 到 SlotTable | ✅ 已完成 |
-| 02 | `02-compose-recomposition.md` | SlotTable 与重组机制 | ⏳ 计划中 |
-| 03 | `03-compose-node-tree.md` | SlotTable 到节点树 | ⏳ 计划中 |
-| 04 | `04-compose-snapshot.md` | Snapshot 状态管理 | ⏳ 计划中 |
+| 01 | `01-SlotTable的结构.md` | SlotTable 数据结构设计 | ✅ 已完成 |
+| 02 | `02-SlotTable与重组.md` | 重组机制与 Key 匹配 | ✅ 已完成 |
+| 03 | `03-SlotTable到LayoutNode.md` | UI 节点树构建 | ✅ 已完成 |
+| 04 | `04-SubcomposeLayout与复用机制.md` | 延迟组合与复用池 | ✅ 已完成 |
 
 详细计划请参阅 `PLAN.md`。
 
@@ -100,19 +109,18 @@ file:///Users/tyrionguan/Documents/Obsidian%20Vault/AIBrain/Compose/animations/[
 
 ### 创建新文章
 1. 在 `PLAN.md` 中确认文章大纲
-2. 创建文章文件 `[序号]-compose-[主题].md`
+2. 创建文章文件 `[序号]-[主题].md`
 3. 创建配套动画文件
 4. 更新 `animations/index.html` 添加新动画卡片
 5. 更新 `PLAN.md` 标记完成状态
 
 ### 修订现有文章
 - 小修改：直接编辑
-- 重大修改：先创建 `-old.md` 备份
+- 重大修改：先创建备份
 
 ### 提交规范
 - 提交信息使用中文
 - 每次提交应是一个逻辑完整的改动
-- 示例：`完成第一篇文章的 Gap Buffer 章节`
 
 ## 参考资源
 
@@ -141,8 +149,7 @@ file:///Users/tyrionguan/Documents/Obsidian%20Vault/AIBrain/Compose/animations/[
 ### 关键提醒
 1. **路径问题**：iframe 必须使用绝对路径
 2. **进度跟踪**：及时更新 `PLAN.md`
-3. **备份策略**：重大修改前创建备份
-4. **术语一致**：使用统一的技术术语
+3. **术语一致**：使用统一的技术术语
 
 ---
 
