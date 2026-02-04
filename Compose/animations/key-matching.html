@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Key 匹配算法演示</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Monaco', monospace;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            background: #0f0f23;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            padding: 30px;
+            max-width: 1200px;
+            margin: 0 auto;
+            border: 1px solid #333;
+        }
+
+        h2 {
+            text-align: center;
+            color: #00d9ff;
+            margin-bottom: 10px;
+            font-size: 24px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .scenario-selector {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .scenario-btn {
+            padding: 10px 20px;
+            border: 2px solid #333;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #1a1a2e;
+            color: #aaa;
+        }
+
+        .scenario-btn:hover {
+            border-color: #00d9ff;
+            color: #00d9ff;
+        }
+
+        .scenario-btn.active {
+            background: linear-gradient(135deg, #00d9ff 0%, #0099ff 100%);
+            color: #000;
+            border-color: #00d9ff;
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .panel {
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #333;
+        }
+
+        .panel-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #00d9ff;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-title::before {
+            content: '';
+            width: 4px;
+            height: 16px;
+            background: #00d9ff;
+            border-radius: 2px;
+        }
+
+        /* 决策流程图 */
+        .flowchart {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            padding: 15px;
+        }
+
+        .flow-node {
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            text-align: center;
+            transition: all 0.3s ease;
+            min-width: 180px;
+        }
+
+        .flow-node.start {
+            background: #2d5a87;
+            color: #fff;
+            border: 2px solid #4a90d9;
+        }
+
+        .flow-node.decision {
+            background: #1a1a2e;
+            color: #ffd700;
+            border: 2px solid #ffd700;
+            transform: rotate(0deg);
+            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+            padding: 25px 30px;
+            min-width: 200px;
+        }
+
+        .flow-node.action {
+            background: #1a3d1a;
+            color: #00ff88;
+            border: 2px solid #00ff88;
+        }
+
+        .flow-node.action.delete {
+            background: #3d1a1a;
+            color: #ff6b6b;
+            border: 2px solid #ff6b6b;
+        }
+
+        .flow-node.action.move {
+            background: #3d3d1a;
+            color: #ffd700;
+            border: 2px solid #ffd700;
+        }
+
+        .flow-node.highlight {
+            box-shadow: 0 0 20px rgba(0, 217, 255, 0.6);
+            transform: scale(1.05);
+        }
+
+        .flow-arrow {
+            color: #666;
+            font-size: 20px;
+        }
+
+        .flow-row {
+            display: flex;
+            gap: 30px;
+            align-items: center;
+        }
+
+        .flow-branch {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .flow-label {
+            font-size: 12px;
+            color: #888;
+            margin-top: -5px;
+        }
+
+        /* SlotTable 可视化 */
+        .slottable-view {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .slot-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .slot-label {
+            width: 80px;
+            color: #888;
+            font-size: 12px;
+            text-align: right;
+        }
+
+        .slot-array {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .slot-cell {
+            width: 60px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .slot-cell.group {
+            background: #2d5a87;
+            color: #fff;
+        }
+
+        .slot-cell.current {
+            border-color: #00d9ff;
+            box-shadow: 0 0 10px rgba(0, 217, 255, 0.5);
+        }
+
+        .slot-cell.expected {
+            border-color: #ffd700;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+        }
+
+        .slot-cell.match {
+            background: #1a5a1a;
+            border-color: #00ff88;
+        }
+
+        .slot-cell.mismatch {
+            background: #5a1a1a;
+            border-color: #ff6b6b;
+        }
+
+        .slot-cell.moving {
+            background: #5a5a1a;
+            border-color: #ffd700;
+            animation: pulse 0.5s ease infinite;
+        }
+
+        .slot-cell.deleted {
+            opacity: 0.3;
+            text-decoration: line-through;
+        }
+
+        .slot-cell.new {
+            background: #1a5a1a;
+            border-color: #00ff88;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.8); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        /* 期望序列 */
+        .expected-row {
+            margin-top: 10px;
+            padding-top: 15px;
+            border-top: 1px dashed #333;
+        }
+
+        .expected-label {
+            color: #ffd700;
+        }
+
+        /* 说明面板 */
+        .info-panel {
+            background: #0d1117;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+
+        .info-title {
+            color: #00d9ff;
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+
+        .info-content {
+            color: #aaa;
+            font-size: 12px;
+            line-height: 1.8;
+        }
+
+        .info-content .highlight-text {
+            color: #00ff88;
+            font-weight: bold;
+        }
+
+        .info-content .warning-text {
+            color: #ff6b6b;
+        }
+
+        .info-content .move-text {
+            color: #ffd700;
+        }
+
+        /* 控制按钮 */
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .control-btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .control-btn.primary {
+            background: linear-gradient(135deg, #00d9ff 0%, #0099ff 100%);
+            color: #000;
+        }
+
+        .control-btn.primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 217, 255, 0.4);
+        }
+
+        .control-btn.secondary {
+            background: #333;
+            color: #fff;
+        }
+
+        .control-btn.secondary:hover {
+            background: #444;
+        }
+
+        .control-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* 步骤指示器 */
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 15px;
+        }
+
+        .step-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #333;
+            transition: all 0.3s ease;
+        }
+
+        .step-dot.active {
+            background: #00d9ff;
+        }
+
+        .step-dot.completed {
+            background: #00ff88;
+        }
+
+        /* 响应式 */
+        @media (max-width: 900px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Key 匹配算法演示</h2>
+        <p class="subtitle">理解 Compose 重组时如何决定复用、移动或替换 Group</p>
+
+        <div class="scenario-selector">
+            <button class="scenario-btn active" onclick="selectScenario(0)">场景1: Key 匹配复用</button>
+            <button class="scenario-btn" onclick="selectScenario(1)">场景2: Key 不匹配替换</button>
+            <button class="scenario-btn" onclick="selectScenario(2)">场景3: Movable Group 移动</button>
+        </div>
+
+        <div class="main-layout">
+            <!-- 左侧：SlotTable 可视化 -->
+            <div class="panel">
+                <div class="panel-title">SlotTable 状态</div>
+                <div class="slottable-view">
+                    <div class="slot-row">
+                        <span class="slot-label">当前 Groups:</span>
+                        <div class="slot-array" id="current-groups"></div>
+                    </div>
+                    <div class="slot-row expected-row">
+                        <span class="slot-label expected-label">期望序列:</span>
+                        <div class="slot-array" id="expected-groups"></div>
+                    </div>
+                </div>
+
+                <div class="info-panel">
+                    <div class="info-title">当前操作</div>
+                    <div class="info-content" id="operation-info">
+                        点击"下一步"开始演示
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧：决策流程 -->
+            <div class="panel">
+                <div class="panel-title">决策流程</div>
+                <div class="flowchart" id="flowchart">
+                    <div class="flow-node start" id="node-start">遍历到当前 Group</div>
+                    <div class="flow-arrow">↓</div>
+                    <div class="flow-node start" id="node-compare">比较 Key</div>
+                    <div class="flow-arrow">↓</div>
+                    <div class="flow-row">
+                        <div class="flow-branch">
+                            <div class="flow-label">匹配 ✓</div>
+                            <div class="flow-node action" id="node-reuse">复用 Group</div>
+                        </div>
+                        <div class="flow-branch">
+                            <div class="flow-label">不匹配 ✗</div>
+                            <div class="flow-node start" id="node-search">查找 Movable</div>
+                        </div>
+                    </div>
+                    <div class="flow-arrow" style="margin-left: 100px;">↓</div>
+                    <div class="flow-row" style="margin-left: 100px;">
+                        <div class="flow-branch">
+                            <div class="flow-label">找到</div>
+                            <div class="flow-node action move" id="node-move">移动 Group</div>
+                        </div>
+                        <div class="flow-branch">
+                            <div class="flow-label">未找到</div>
+                            <div class="flow-node action delete" id="node-replace">删除+插入</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="control-btn secondary" onclick="reset()">重置</button>
+            <button class="control-btn primary" id="next-btn" onclick="nextStep()">下一步</button>
+        </div>
+
+        <div class="step-indicator" id="step-indicator"></div>
+    </div>
+
+    <script>
+        // 场景数据
+        const scenarios = [
+            {
+                name: "Key 匹配复用",
+                current: [
+                    { key: "A", type: "group" },
+                    { key: "B", type: "group" },
+                    { key: "C", type: "group" }
+                ],
+                expected: ["A", "B", "C"],
+                steps: [
+                    {
+                        currentIdx: 0,
+                        expectedIdx: 0,
+                        action: "compare",
+                        highlightNodes: ["node-start", "node-compare"],
+                        info: "遍历到 Group <span class='highlight-text'>key=\"A\"</span>，期望 <span class='highlight-text'>key=\"A\"</span>"
+                    },
+                    {
+                        currentIdx: 0,
+                        expectedIdx: 0,
+                        action: "match",
+                        highlightNodes: ["node-reuse"],
+                        info: "Key 匹配！<span class='highlight-text'>复用</span>当前 Group，只更新 slots 数据"
+                    },
+                    {
+                        currentIdx: 1,
+                        expectedIdx: 1,
+                        action: "compare",
+                        highlightNodes: ["node-start", "node-compare"],
+                        info: "遍历到 Group <span class='highlight-text'>key=\"B\"</span>，期望 <span class='highlight-text'>key=\"B\"</span>"
+                    },
+                    {
+                        currentIdx: 1,
+                        expectedIdx: 1,
+                        action: "match",
+                        highlightNodes: ["node-reuse"],
+                        info: "Key 匹配！<span class='highlight-text'>复用</span>当前 Group"
+                    },
+                    {
+                        currentIdx: 2,
+                        expectedIdx: 2,
+                        action: "compare",
+                        highlightNodes: ["node-start", "node-compare"],
+                        info: "遍历到 Group <span class='highlight-text'>key=\"C\"</span>，期望 <span class='highlight-text'>key=\"C\"</span>"
+                    },
+                    {
+                        currentIdx: 2,
+                        expectedIdx: 2,
+                        action: "match",
+                        highlightNodes: ["node-reuse"],
+                        info: "Key 匹配！<span class='highlight-text'>复用</span>当前 Group。<br><br>✅ 所有 Group 都匹配，这是<span class='highlight-text'>最高效</span>的重组场景！"
+                    }
+                ]
+            },
+            {
+                name: "Key 不匹配替换",
+                current: [
+                    { key: "A", type: "group" },
+                    { key: "B", type: "group" },
+                    { key: "C", type: "group" }
+                ],
+                expected: ["A", "D", "C"],
+                steps: [
+                    {
+                        currentIdx: 0,
+                        expectedIdx: 0,
+                        action: "compare",
+                        highlightNodes: ["node-start", "node-compare"],
+                        info: "遍历到 Group <span class='highlight-text'>key=\"A\"</span>，期望 <span class='highlight-text'>key=\"A\"</span>"
+                    },
+                    {
+                        currentIdx: 0,
+                        expectedIdx: 0,
+                        action: "match",
+                        highlightNodes: ["node-reuse"],
+                        info: "Key 匹配！<span class='highlight-text'>复用</span>当前 Group"
+                    },
+                    {
+                        currentIdx: 1,
+                        expectedIdx: 1,
+                        action: "compare",
+                        highlightNodes: ["node-start", "node-compare"],
+                        info: "遍历到 Group <span class='highlight-text'>key=\"B\"</span>，期望 <span class='move-text'>key=\"D\"</span>"
+                    },
+                    {
+                        currentIdx: 1,
+                        expectedIdx: 1,
+                        action: "mismatch",
+                        highlightNodes: ["node-search"],
+                        info: "Key 不匹配！在后续 Group 中查找 <span class='move-text'>key=\"D\"</span> 的 Movable Group..."
+                    },
+                    {
+                        currentIdx: 1,
+                        expectedIdx: 1,
+                        action: "not-found",
+                        highlightNodes: ["node-replace"],
+                        info: "未找到 Movable Group。执行：<br>1. <span class='warning-text'>删除</span> key=\"B\" 的 Group<br>2. <span class='highlight-text'>插入</span>新的 key=\"D\" Group"
+                    },
+                    {
+                        currentIdx: 1,
+                        expectedIdx: 1,
+                        action: "replace",
+                        highlightNodes: ["node-replace"],
+                        result: [
+                            { key: "A", type: "group", state: "match" },
+                            { key: "D", type: "group", state: "new" },
+                            { key: "C", type: "group" }
+                        ],
+                        info: "替换完成！Group B 被删除，Group D 被创建"
+                    },
+                    {
+                        currentIdx: 2,
+                        expectedIdx: 2,
+                        action: "compare",
+                        highlightNodes: ["node-start", "node-compare"],
+                        info: "遍历到 Group <span class='highlight-text'>key=\"C\"</span>，期望 <span class='highlight-text'>key=\"C\"</span>"
+                    },
+                    {
+                        currentIdx: 2,
+                        expectedIdx: 2,
+                        action: "match",
+                        highlightNodes: ["node-reuse"],
+                        info: "Key 匹配！<span class='highlight-text'>复用</span>当前 Group。<br><br>⚠️ 替换操作会丢失 Group B 中的所有状态（remember、副作用等）"
+                    }
+                ]
+            },
+            {
+                name: "Movable Group 移动",
+                current: [
+                    { key: "A", type: "movable" },
+                    { key: "B", type: "movable" },
+                    { key: "C", type: "movable" }
+                ],
+                expected: ["C", "A", "B"],
+                steps: [
+                    {
+                        currentIdx: 0,
+                        expectedIdx: 0,
+                        action: "compare",
+                        highlightNodes: ["node-start", "node-compare"],
+                        info: "遍历到 Movable Group <span class='highlight-text'>key=\"A\"</span>，期望 <span class='move-text'>key=\"C\"</span>"
+                    },
+                    {
+                        currentIdx: 0,
+                        expectedIdx: 0,
+                        action: "mismatch",
+                        highlightNodes: ["node-search"],
+                        info: "Key 不匹配！这是 <span class='move-text'>Movable Group</span>，在后续查找 key=\"C\"..."
+                    },
+                    {
+                        currentIdx: 2,
+                        expectedIdx: 0,
+                        action: "found",
+                        highlightNodes: ["node-move"],
+                        info: "找到 <span class='move-text'>key=\"C\"</span> 在索引 2！执行<span class='move-text'>移动</span>操作"
+                    },
+                    {
+                        currentIdx: 0,
+                        expectedIdx: 0,
+                        action: "move",
+                        highlightNodes: ["node-move"],
+                        result: [
+                            { key: "C", type: "movable", state: "match" },
+                            { key: "A", type: "movable" },
+                            { key: "B", type: "movable" }
+                        ],
+                        info: "移动完成！Group C 移动到索引 0<br><br>✅ <span class='highlight-text'>移动</span>比删除+创建更高效，保留了所有状态！"
+                    },
+                    {
+                        currentIdx: 1,
+                        expectedIdx: 1,
+                        action: "compare",
+                        highlightNodes: ["node-start", "node-compare"],
+                        info: "遍历到 Movable Group <span class='highlight-text'>key=\"A\"</span>，期望 <span class='highlight-text'>key=\"A\"</span>"
+                    },
+                    {
+                        currentIdx: 1,
+                        expectedIdx: 1,
+                        action: "match",
+                        highlightNodes: ["node-reuse"],
+                        info: "Key 匹配！<span class='highlight-text'>复用</span>当前 Group"
+                    },
+                    {
+                        currentIdx: 2,
+                        expectedIdx: 2,
+                        action: "compare",
+                        highlightNodes: ["node-start", "node-compare"],
+                        info: "遍历到 Movable Group <span class='highlight-text'>key=\"B\"</span>，期望 <span class='highlight-text'>key=\"B\"</span>"
+                    },
+                    {
+                        currentIdx: 2,
+                        expectedIdx: 2,
+                        action: "match",
+                        highlightNodes: ["node-reuse"],
+                        info: "Key 匹配！<span class='highlight-text'>复用</span>当前 Group。<br><br>🎉 使用 <span class='move-text'>key()</span> 包裹列表项可以启用 Movable Group 优化！"
+                    }
+                ]
+            }
+        ];
+
+        let currentScenario = 0;
+        let currentStep = 0;
+        let currentGroups = [];
+
+        function selectScenario(idx) {
+            currentScenario = idx;
+            document.querySelectorAll('.scenario-btn').forEach((btn, i) => {
+                btn.classList.toggle('active', i === idx);
+            });
+            reset();
+        }
+
+        function reset() {
+            currentStep = 0;
+            const scenario = scenarios[currentScenario];
+            currentGroups = JSON.parse(JSON.stringify(scenario.current));
+
+            renderGroups();
+            renderExpected();
+            renderStepIndicator();
+            clearHighlights();
+
+            document.getElementById('operation-info').innerHTML = '点击"下一步"开始演示';
+            document.getElementById('next-btn').disabled = false;
+        }
+
+        function renderGroups() {
+            const container = document.getElementById('current-groups');
+            container.innerHTML = '';
+
+            currentGroups.forEach((group, idx) => {
+                const cell = document.createElement('div');
+                cell.className = `slot-cell group ${group.state || ''}`;
+                cell.textContent = `key="${group.key}"`;
+                cell.id = `group-${idx}`;
+
+                if (group.type === 'movable') {
+                    cell.style.borderStyle = 'dashed';
+                }
+
+                container.appendChild(cell);
+            });
+        }
+
+        function renderExpected() {
+            const container = document.getElementById('expected-groups');
+            const scenario = scenarios[currentScenario];
+            container.innerHTML = '';
+
+            scenario.expected.forEach((key, idx) => {
+                const cell = document.createElement('div');
+                cell.className = 'slot-cell group';
+                cell.style.background = '#3d3d1a';
+                cell.style.borderColor = '#ffd700';
+                cell.textContent = `key="${key}"`;
+                cell.id = `expected-${idx}`;
+                container.appendChild(cell);
+            });
+        }
+
+        function renderStepIndicator() {
+            const container = document.getElementById('step-indicator');
+            const scenario = scenarios[currentScenario];
+            container.innerHTML = '';
+
+            scenario.steps.forEach((_, idx) => {
+                const dot = document.createElement('div');
+                dot.className = 'step-dot';
+                if (idx < currentStep) dot.classList.add('completed');
+                if (idx === currentStep) dot.classList.add('active');
+                container.appendChild(dot);
+            });
+        }
+
+        function clearHighlights() {
+            document.querySelectorAll('.flow-node').forEach(node => {
+                node.classList.remove('highlight');
+            });
+            document.querySelectorAll('.slot-cell').forEach(cell => {
+                cell.classList.remove('current', 'expected', 'moving');
+            });
+        }
+
+        function nextStep() {
+            const scenario = scenarios[currentScenario];
+            if (currentStep >= scenario.steps.length) return;
+
+            const step = scenario.steps[currentStep];
+            clearHighlights();
+
+            // 高亮流程节点
+            step.highlightNodes.forEach(nodeId => {
+                const node = document.getElementById(nodeId);
+                if (node) node.classList.add('highlight');
+            });
+
+            // 高亮当前处理的 Group
+            const currentCell = document.getElementById(`group-${step.currentIdx}`);
+            const expectedCell = document.getElementById(`expected-${step.expectedIdx}`);
+
+            if (currentCell) {
+                if (step.action === 'match') {
+                    currentCell.classList.add('match');
+                } else if (step.action === 'mismatch' || step.action === 'not-found') {
+                    currentCell.classList.add('mismatch');
+                } else if (step.action === 'found' || step.action === 'move') {
+                    currentCell.classList.add('moving');
+                } else {
+                    currentCell.classList.add('current');
+                }
+            }
+
+            if (expectedCell && step.action !== 'match') {
+                expectedCell.classList.add('expected');
+            }
+
+            // 更新结果
+            if (step.result) {
+                currentGroups = step.result;
+                renderGroups();
+            }
+
+            // 更新信息
+            document.getElementById('operation-info').innerHTML = step.info;
+
+            currentStep++;
+            renderStepIndicator();
+
+            if (currentStep >= scenario.steps.length) {
+                document.getElementById('next-btn').disabled = true;
+            }
+        }
+
+        // 初始化
+        reset();
+    </script>
+</body>
+</html>

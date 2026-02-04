@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compose 源码分析动画演示</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 20px;
+            font-size: 36px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .subtitle {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: 40px;
+            font-size: 18px;
+        }
+
+        .animation-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 30px;
+        }
+
+        .animation-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .animation-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+        }
+
+        .card-title {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .card-description {
+            font-size: 14px;
+            opacity: 0.9;
+            line-height: 1.5;
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+
+        .animation-link {
+            display: block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .animation-link:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .preview {
+            margin-bottom: 15px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #f0f0f0;
+        }
+
+        .preview iframe {
+            width: 100%;
+            height: 250px;
+            border: none;
+        }
+
+        .badge {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin-right: 8px;
+        }
+
+        .article-link {
+            text-align: center;
+            margin-top: 40px;
+        }
+
+        .article-link a {
+            color: white;
+            text-decoration: none;
+            font-size: 16px;
+            padding: 12px 24px;
+            border: 2px solid white;
+            border-radius: 8px;
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+
+        .article-link a:hover {
+            background: white;
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 Compose 源码分析动画演示</h1>
+        <div class="subtitle">SlotTable 系列文章配套动画</div>
+
+        <div class="animation-grid">
+            <!-- 动画 1 -->
+            <div class="animation-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="badge">第一篇</span>
+                        Counter 示例 - SlotTable 存储
+                    </div>
+                    <div class="card-description">
+                        以 Counter 带 remember 示例，详细展示 Group 树形结构和 SlotTable 的完整存储布局（groups 和 slots 数组的每个值）
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="preview">
+                        <iframe src="group-tree-storage.html"></iframe>
+                    </div>
+                    <a href="group-tree-storage.html" target="_blank" class="animation-link">
+                        打开完整动画 →
+                    </a>
+                </div>
+            </div>
+
+            <!-- 动画 2 -->
+            <div class="animation-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="badge">第一篇</span>
+                        GroupInfo 位标记与 Group 类型
+                    </div>
+                    <div class="card-description">
+                        深入理解 GroupInfo 的位布局、四种 Group 类型的区别，以及位操作的交互演示
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="preview">
+                        <iframe src="group-info-types.html"></iframe>
+                    </div>
+                    <a href="group-info-types.html" target="_blank" class="animation-link">
+                        打开完整动画 →
+                    </a>
+                </div>
+            </div>
+
+            <!-- 动画 3 -->
+            <div class="animation-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="badge">第二篇</span>
+                        Gap Buffer 操作演示
+                    </div>
+                    <div class="card-description">
+                        可视化展示 Gap Buffer 的插入、删除和移动操作，理解其 O(1) 性能的秘密
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="preview">
+                        <iframe src="gap-buffer-operations.html"></iframe>
+                    </div>
+                    <a href="gap-buffer-operations.html" target="_blank" class="animation-link">
+                        打开完整动画 →
+                    </a>
+                </div>
+            </div>
+
+            <!-- 动画 4 -->
+            <div class="animation-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="badge">第二篇</span>
+                        Key 匹配算法演示
+                    </div>
+                    <div class="card-description">
+                        理解 Compose 重组时如何决定复用、移动或替换 Group，包含三种典型场景
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="preview">
+                        <iframe src="key-matching.html"></iframe>
+                    </div>
+                    <a href="key-matching.html" target="_blank" class="animation-link">
+                        打开完整动画 →
+                    </a>
+                </div>
+            </div>
+
+            <!-- 动画 5 -->
+            <div class="animation-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="badge">第二篇</span>
+                        重组时 SlotTable 变化
+                    </div>
+                    <div class="card-description">
+                        三种典型重组场景：数据更新、条件分支切换、列表项变化时 SlotTable 的动态变化
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="preview">
+                        <iframe src="slottable-recomposition.html"></iframe>
+                    </div>
+                    <a href="slottable-recomposition.html" target="_blank" class="animation-link">
+                        打开完整动画 →
+                    </a>
+                </div>
+            </div>
+
+            <!-- 动画 6 -->
+            <div class="animation-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="badge">第三篇</span>
+                        applyChanges 完整流程
+                    </div>
+                    <div class="card-description">
+                        观察 Changes 如何被收集并应用到 LayoutNode 树，包含首次组合、数据更新、结构变化三种场景
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="preview">
+                        <iframe src="apply-changes-flow.html"></iframe>
+                    </div>
+                    <a href="apply-changes-flow.html" target="_blank" class="animation-link">
+                        打开完整动画 →
+                    </a>
+                </div>
+            </div>
+
+            <!-- 动画 7 -->
+            <div class="animation-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="badge">第四篇</span>
+                        Subcomposition 生命周期
+                    </div>
+                    <div class="card-description">
+                        展示 Subcomposition 的完整生命周期：创建 → 活跃 → 停用 → 释放的状态流转
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="preview">
+                        <iframe src="subcompose-lifecycle.html"></iframe>
+                    </div>
+                    <a href="subcompose-lifecycle.html" target="_blank" class="animation-link">
+                        打开完整动画 →
+                    </a>
+                </div>
+            </div>
+
+            <!-- 动画 8 -->
+            <div class="animation-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="badge">第四篇</span>
+                        复用池机制演示
+                    </div>
+                    <div class="card-description">
+                        理解 Subcomposition 如何被停用、缓存到复用池，以及如何被复用。包含 contentType 优化场景
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="preview">
+                        <iframe src="subcompose-reuse-pool.html"></iframe>
+                    </div>
+                    <a href="subcompose-reuse-pool.html" target="_blank" class="animation-link">
+                        打开完整动画 →
+                    </a>
+                </div>
+            </div>
+
+            <!-- 动画 9 -->
+            <div class="animation-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="badge">第四篇</span>
+                        Key 变化时的复用逻辑
+                    </div>
+                    <div class="card-description">
+                        复用决策优先级：slotId 精确匹配 > contentType 匹配 > 任意复用 > 新建
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="preview">
+                        <iframe src="key-change-reuse.html"></iframe>
+                    </div>
+                    <a href="key-change-reuse.html" target="_blank" class="animation-link">
+                        打开完整动画 →
+                    </a>
+                </div>
+            </div>
+
+            <!-- 动画 10 -->
+            <div class="animation-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="badge">第四篇</span>
+                        LazyColumn 滚动复用
+                    </div>
+                    <div class="card-description">
+                        模拟列表滚动时 Subcomposition 的复用行为，观察离开视口的 item 如何被复用
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="preview">
+                        <iframe src="lazy-column-reuse.html"></iframe>
+                    </div>
+                    <a href="lazy-column-reuse.html" target="_blank" class="animation-link">
+                        打开完整动画 →
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="article-link">
+            <a href="../01-SlotTable的结构.md">📖 第一篇：SlotTable 的结构</a>
+            <a href="../02-SlotTable与重组.md" style="margin-left: 20px;">📖 第二篇：SlotTable 与重组</a>
+            <a href="../03-SlotTable到LayoutNode.md" style="margin-left: 20px;">📖 第三篇：SlotTable 到 LayoutNode</a>
+            <a href="../04-SubcomposeLayout与复用机制.md" style="margin-left: 20px;">📖 第四篇：SubcomposeLayout 与复用</a>
+        </div>
+    </div>
+</body>
+</html>

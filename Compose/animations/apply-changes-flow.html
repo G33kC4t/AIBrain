@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>applyChanges 完整流程演示</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Monaco', monospace;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            background: #0f0f23;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            padding: 30px;
+            max-width: 1400px;
+            margin: 0 auto;
+            border: 1px solid #333;
+        }
+
+        h2 {
+            text-align: center;
+            color: #00d9ff;
+            margin-bottom: 10px;
+            font-size: 24px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .scenario-selector {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .scenario-btn {
+            padding: 10px 20px;
+            border: 2px solid #333;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #1a1a2e;
+            color: #aaa;
+        }
+
+        .scenario-btn:hover {
+            border-color: #00d9ff;
+            color: #00d9ff;
+        }
+
+        .scenario-btn.active {
+            background: linear-gradient(135deg, #00d9ff 0%, #0099ff 100%);
+            color: #000;
+            border-color: #00d9ff;
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .panel {
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #333;
+        }
+
+        .panel-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #00d9ff;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-title::before {
+            content: '';
+            width: 4px;
+            height: 16px;
+            background: #00d9ff;
+            border-radius: 2px;
+        }
+
+        /* Changes 列表 */
+        .changes-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .change-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            background: #0d1117;
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .change-item.current {
+            border-color: #00d9ff;
+            background: rgba(0, 217, 255, 0.1);
+        }
+
+        .change-item.completed {
+            opacity: 0.5;
+            border-color: #00ff88;
+        }
+
+        .change-item.pending {
+            opacity: 0.7;
+        }
+
+        .change-index {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            color: #888;
+            flex-shrink: 0;
+        }
+
+        .change-item.current .change-index {
+            background: #00d9ff;
+            color: #000;
+        }
+
+        .change-item.completed .change-index {
+            background: #00ff88;
+            color: #000;
+        }
+
+        .change-type {
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .change-type.insert { background: #1a5a1a; color: #00ff88; }
+        .change-type.remove { background: #5a1a1a; color: #ff6b6b; }
+        .change-type.move { background: #5a5a1a; color: #ffd700; }
+        .change-type.update { background: #1a1a5a; color: #8b8bff; }
+        .change-type.navigate { background: #3d3d3d; color: #aaa; }
+
+        .change-desc {
+            font-size: 12px;
+            color: #ccc;
+            flex: 1;
+        }
+
+        /* LayoutNode 树 */
+        .tree-container {
+            min-height: 400px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 20px;
+        }
+
+        .tree-node {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .node-box {
+            padding: 10px 16px;
+            border-radius: 8px;
+            background: #2d5a87;
+            border: 2px solid #4a90d9;
+            color: #fff;
+            font-size: 12px;
+            font-weight: bold;
+            text-align: center;
+            min-width: 80px;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .node-box.root {
+            background: #5a2d87;
+            border-color: #9a4ad9;
+        }
+
+        .node-box.current {
+            border-color: #00d9ff;
+            box-shadow: 0 0 15px rgba(0, 217, 255, 0.5);
+        }
+
+        .node-box.new {
+            background: #1a5a1a;
+            border-color: #00ff88;
+            animation: nodeAppear 0.5s ease;
+        }
+
+        .node-box.removing {
+            background: #5a1a1a;
+            border-color: #ff6b6b;
+            animation: nodeRemove 0.5s ease forwards;
+        }
+
+        .node-box.moving {
+            background: #5a5a1a;
+            border-color: #ffd700;
+            animation: nodeMove 0.5s ease;
+        }
+
+        .node-box.updating {
+            border-color: #8b8bff;
+            box-shadow: 0 0 15px rgba(139, 139, 255, 0.5);
+        }
+
+        @keyframes nodeAppear {
+            from { opacity: 0; transform: scale(0.5); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes nodeRemove {
+            to { opacity: 0; transform: scale(0.5); }
+        }
+
+        @keyframes nodeMove {
+            0%, 100% { transform: translateX(0); }
+            50% { transform: translateX(10px); }
+        }
+
+        .node-children {
+            display: flex;
+            gap: 20px;
+            margin-top: 30px;
+            position: relative;
+        }
+
+        .node-children::before {
+            content: '';
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            width: 2px;
+            height: 15px;
+            background: #4a90d9;
+        }
+
+        .tree-node > .node-children > .tree-node::before {
+            content: '';
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            width: 2px;
+            height: 15px;
+            background: #4a90d9;
+        }
+
+        /* Applier 状态 */
+        .applier-state {
+            background: #0d1117;
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .state-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #222;
+            font-size: 12px;
+        }
+
+        .state-row:last-child {
+            border-bottom: none;
+        }
+
+        .state-label {
+            color: #888;
+        }
+
+        .state-value {
+            color: #00d9ff;
+            font-weight: bold;
+        }
+
+        .state-value.highlight {
+            color: #00ff88;
+        }
+
+        /* 说明面板 */
+        .info-panel {
+            background: #0d1117;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+
+        .info-content {
+            color: #aaa;
+            font-size: 12px;
+            line-height: 1.8;
+        }
+
+        .info-content .highlight-text {
+            color: #00ff88;
+            font-weight: bold;
+        }
+
+        .info-content .warning-text {
+            color: #ff6b6b;
+        }
+
+        .info-content .move-text {
+            color: #ffd700;
+        }
+
+        .info-content .update-text {
+            color: #8b8bff;
+        }
+
+        /* 流程指示 */
+        .flow-indicator {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #1a1a2e;
+            border-radius: 8px;
+        }
+
+        .flow-step {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 6px;
+            background: #0d1117;
+            color: #666;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .flow-step.active {
+            background: #00d9ff;
+            color: #000;
+            font-weight: bold;
+        }
+
+        .flow-step.completed {
+            background: #00ff88;
+            color: #000;
+        }
+
+        .flow-arrow {
+            color: #444;
+            font-size: 16px;
+        }
+
+        /* 控制按钮 */
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .control-btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .control-btn.primary {
+            background: linear-gradient(135deg, #00d9ff 0%, #0099ff 100%);
+            color: #000;
+        }
+
+        .control-btn.primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 217, 255, 0.4);
+        }
+
+        .control-btn.secondary {
+            background: #333;
+            color: #fff;
+        }
+
+        .control-btn.secondary:hover {
+            background: #444;
+        }
+
+        .control-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* 步骤指示器 */
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 15px;
+        }
+
+        .step-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #333;
+            transition: all 0.3s ease;
+        }
+
+        .step-dot.active {
+            background: #00d9ff;
+        }
+
+        .step-dot.completed {
+            background: #00ff88;
+        }
+
+        @media (max-width: 1100px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>applyChanges 完整流程演示</h2>
+        <p class="subtitle">观察 Changes 如何被收集并应用到 LayoutNode 树</p>
+
+        <div class="scenario-selector">
+            <button class="scenario-btn active" onclick="selectScenario(0)">场景1: 首次组合</button>
+            <button class="scenario-btn" onclick="selectScenario(1)">场景2: 数据更新</button>
+            <button class="scenario-btn" onclick="selectScenario(2)">场景3: 结构变化</button>
+        </div>
+
+        <div class="flow-indicator">
+            <div class="flow-step" id="flow-compose">1. 组合阶段</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step" id="flow-collect">2. 收集 Changes</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step" id="flow-apply">3. applyChanges</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step" id="flow-done">4. 完成</div>
+        </div>
+
+        <div class="main-layout">
+            <!-- 左侧：Changes 列表 -->
+            <div class="panel">
+                <div class="panel-title">Changes 列表</div>
+                <div class="changes-list" id="changes-list"></div>
+            </div>
+
+            <!-- 中间：LayoutNode 树 -->
+            <div class="panel">
+                <div class="panel-title">LayoutNode 树</div>
+                <div class="tree-container" id="tree-container"></div>
+            </div>
+
+            <!-- 右侧：Applier 状态 -->
+            <div class="panel">
+                <div class="panel-title">Applier 状态</div>
+                <div class="applier-state">
+                    <div class="state-row">
+                        <span class="state-label">current:</span>
+                        <span class="state-value" id="applier-current">Root</span>
+                    </div>
+                    <div class="state-row">
+                        <span class="state-label">栈深度:</span>
+                        <span class="state-value" id="applier-stack">0</span>
+                    </div>
+                    <div class="state-row">
+                        <span class="state-label">已执行:</span>
+                        <span class="state-value" id="changes-executed">0</span>
+                    </div>
+                    <div class="state-row">
+                        <span class="state-label">待执行:</span>
+                        <span class="state-value" id="changes-pending">0</span>
+                    </div>
+                </div>
+
+                <div class="info-panel">
+                    <div class="info-content" id="info-text">
+                        点击"下一步"开始演示
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="control-btn secondary" onclick="reset()">重置</button>
+            <button class="control-btn primary" id="next-btn" onclick="nextStep()">下一步</button>
+        </div>
+
+        <div class="step-indicator" id="step-indicator"></div>
+    </div>
+
+    <script>
+        // 场景数据
+        const scenarios = [
+            // 场景1: 首次组合
+            {
+                name: "首次组合",
+                initialTree: { name: "Root", children: [] },
+                changes: [
+                    { type: "navigate", desc: "down(Root)", action: "down", target: "Root" },
+                    { type: "insert", desc: "insert Column at 0", action: "insert", node: "Column", index: 0 },
+                    { type: "navigate", desc: "down(Column)", action: "down", target: "Column" },
+                    { type: "insert", desc: "insert Text1 at 0", action: "insert", node: "Text1", index: 0 },
+                    { type: "update", desc: 'set text = "Hello"', action: "update", node: "Text1", value: '"Hello"' },
+                    { type: "insert", desc: "insert Text2 at 1", action: "insert", node: "Text2", index: 1 },
+                    { type: "update", desc: 'set text = "World"', action: "update", node: "Text2", value: '"World"' },
+                    { type: "navigate", desc: "up()", action: "up" },
+                    { type: "navigate", desc: "up()", action: "up" }
+                ],
+                steps: [
+                    { phase: "compose", info: "执行 @Composable 函数，遍历 SlotTable" },
+                    { phase: "collect", info: "检测到需要创建 Column 节点，<span class='highlight-text'>收集 InsertNode Change</span>" },
+                    { phase: "collect", info: "进入 Column 内部，准备创建子节点" },
+                    { phase: "collect", info: "检测到需要创建 Text1 节点，<span class='highlight-text'>收集 InsertNode Change</span>" },
+                    { phase: "collect", info: "设置 Text1 的文本内容，<span class='update-text'>收集 UpdateNode Change</span>" },
+                    { phase: "collect", info: "检测到需要创建 Text2 节点，<span class='highlight-text'>收集 InsertNode Change</span>" },
+                    { phase: "collect", info: "设置 Text2 的文本内容，<span class='update-text'>收集 UpdateNode Change</span>" },
+                    { phase: "apply", info: "组合完成，开始 applyChanges" },
+                    { phase: "done", info: "✅ applyChanges 完成！<br>LayoutNode 树已构建完成" }
+                ]
+            },
+            // 场景2: 数据更新
+            {
+                name: "数据更新",
+                initialTree: {
+                    name: "Root",
+                    children: [{
+                        name: "Column",
+                        children: [
+                            { name: "Text1", value: '"Count: 0"' },
+                            { name: "Button" }
+                        ]
+                    }]
+                },
+                changes: [
+                    { type: "navigate", desc: "skip Root", action: "skip" },
+                    { type: "navigate", desc: "skip Column", action: "skip" },
+                    { type: "update", desc: 'set text = "Count: 1"', action: "update", node: "Text1", value: '"Count: 1"' },
+                    { type: "navigate", desc: "skip Button", action: "skip" }
+                ],
+                steps: [
+                    { phase: "compose", info: "重组触发，遍历 SlotTable" },
+                    { phase: "compose", info: "Column 的 key 匹配，<span class='highlight-text'>跳过</span>" },
+                    { phase: "collect", info: "Text1 的参数变化，<span class='update-text'>收集 UpdateNode Change</span>" },
+                    { phase: "apply", info: "Button 未变化，跳过。开始 applyChanges<br><br>✅ 只有一个 Update，性能最优！" }
+                ]
+            },
+            // 场景3: 结构变化
+            {
+                name: "结构变化",
+                initialTree: {
+                    name: "Root",
+                    children: [{
+                        name: "Parent",
+                        children: [
+                            { name: "TextA", value: '"A"' },
+                            { name: "IconA" }
+                        ]
+                    }]
+                },
+                changes: [
+                    { type: "navigate", desc: "down(Parent)", action: "down", target: "Parent" },
+                    { type: "remove", desc: "remove TextA, IconA", action: "remove", count: 2 },
+                    { type: "insert", desc: "insert TextB at 0", action: "insert", node: "TextB", index: 0 },
+                    { type: "update", desc: 'set text = "B"', action: "update", node: "TextB", value: '"B"' },
+                    { type: "navigate", desc: "up()", action: "up" }
+                ],
+                steps: [
+                    { phase: "compose", info: "条件分支切换：showA 变为 false" },
+                    { phase: "collect", info: "key 不匹配，<span class='warning-text'>收集 RemoveNode Change</span>，删除分支 A 的节点" },
+                    { phase: "collect", info: "<span class='highlight-text'>收集 InsertNode Change</span>，创建分支 B 的节点" },
+                    { phase: "collect", info: "设置 TextB 的内容，<span class='update-text'>收集 UpdateNode Change</span>" },
+                    { phase: "apply", info: "开始 applyChanges<br><br>⚠️ 分支 A 的所有状态已丢失" }
+                ]
+            }
+        ];
+
+        let currentScenario = 0;
+        let currentStep = 0;
+        let treeState = null;
+
+        function selectScenario(idx) {
+            currentScenario = idx;
+            document.querySelectorAll('.scenario-btn').forEach((btn, i) => {
+                btn.classList.toggle('active', i === idx);
+            });
+            reset();
+        }
+
+        function reset() {
+            currentStep = 0;
+            const scenario = scenarios[currentScenario];
+            treeState = JSON.parse(JSON.stringify(scenario.initialTree));
+
+            renderChanges();
+            renderTree();
+            renderStepIndicator();
+            updateFlowIndicator("compose");
+            updateApplierState("Root", 0, 0, scenario.changes.length);
+            document.getElementById('info-text').innerHTML = '点击"下一步"开始演示';
+            document.getElementById('next-btn').disabled = false;
+        }
+
+        function renderChanges() {
+            const scenario = scenarios[currentScenario];
+            const container = document.getElementById('changes-list');
+            container.innerHTML = '';
+
+            scenario.changes.forEach((change, idx) => {
+                const item = document.createElement('div');
+                item.className = 'change-item pending';
+                item.id = `change-${idx}`;
+                item.innerHTML = `
+                    <div class="change-index">${idx + 1}</div>
+                    <span class="change-type ${change.type}">${change.type.toUpperCase()}</span>
+                    <span class="change-desc">${change.desc}</span>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function renderTree() {
+            const container = document.getElementById('tree-container');
+            container.innerHTML = '';
+            container.appendChild(createTreeNode(treeState, true));
+        }
+
+        function createTreeNode(node, isRoot = false) {
+            const treeNode = document.createElement('div');
+            treeNode.className = 'tree-node';
+
+            const nodeBox = document.createElement('div');
+            nodeBox.className = `node-box ${isRoot ? 'root' : ''} ${node.state || ''}`;
+            nodeBox.id = `node-${node.name}`;
+
+            let content = node.name;
+            if (node.value) {
+                content += `<br><span style="font-size:10px;color:#aaa">${node.value}</span>`;
+            }
+            nodeBox.innerHTML = content;
+            treeNode.appendChild(nodeBox);
+
+            if (node.children && node.children.length > 0) {
+                const childrenContainer = document.createElement('div');
+                childrenContainer.className = 'node-children';
+                node.children.forEach(child => {
+                    childrenContainer.appendChild(createTreeNode(child));
+                });
+                treeNode.appendChild(childrenContainer);
+            }
+
+            return treeNode;
+        }
+
+        function renderStepIndicator() {
+            const scenario = scenarios[currentScenario];
+            const container = document.getElementById('step-indicator');
+            container.innerHTML = '';
+
+            scenario.steps.forEach((_, idx) => {
+                const dot = document.createElement('div');
+                dot.className = 'step-dot';
+                if (idx < currentStep) dot.classList.add('completed');
+                if (idx === currentStep) dot.classList.add('active');
+                container.appendChild(dot);
+            });
+        }
+
+        function updateFlowIndicator(phase) {
+            const phases = ['compose', 'collect', 'apply', 'done'];
+            phases.forEach(p => {
+                const el = document.getElementById(`flow-${p}`);
+                el.classList.remove('active', 'completed');
+                const idx = phases.indexOf(p);
+                const currentIdx = phases.indexOf(phase);
+                if (idx < currentIdx) el.classList.add('completed');
+                if (idx === currentIdx) el.classList.add('active');
+            });
+        }
+
+        function updateApplierState(current, stack, executed, pending) {
+            document.getElementById('applier-current').textContent = current;
+            document.getElementById('applier-stack').textContent = stack;
+            document.getElementById('changes-executed').textContent = executed;
+            document.getElementById('changes-pending').textContent = pending;
+        }
+
+        function nextStep() {
+            const scenario = scenarios[currentScenario];
+            if (currentStep >= scenario.steps.length) return;
+
+            const step = scenario.steps[currentStep];
+            const change = scenario.changes[currentStep];
+
+            // 更新流程指示
+            updateFlowIndicator(step.phase);
+
+            // 更新 Changes 列表状态
+            for (let i = 0; i < scenario.changes.length; i++) {
+                const item = document.getElementById(`change-${i}`);
+                item.classList.remove('current', 'completed', 'pending');
+                if (i < currentStep) {
+                    item.classList.add('completed');
+                } else if (i === currentStep) {
+                    item.classList.add('current');
+                } else {
+                    item.classList.add('pending');
+                }
+            }
+
+            // 应用变化到树
+            if (change) {
+                applyChangeToTree(change);
+            }
+
+            // 更新 Applier 状态
+            const executed = Math.min(currentStep + 1, scenario.changes.length);
+            const pending = Math.max(0, scenario.changes.length - executed);
+            let currentNode = "Root";
+            let stackDepth = 0;
+
+            // 计算当前位置
+            for (let i = 0; i <= currentStep && i < scenario.changes.length; i++) {
+                const c = scenario.changes[i];
+                if (c.action === 'down') {
+                    currentNode = c.target;
+                    stackDepth++;
+                } else if (c.action === 'up') {
+                    stackDepth = Math.max(0, stackDepth - 1);
+                    currentNode = stackDepth === 0 ? "Root" : "Parent";
+                }
+            }
+            updateApplierState(currentNode, stackDepth, executed, pending);
+
+            // 更新说明
+            document.getElementById('info-text').innerHTML = step.info;
+
+            currentStep++;
+            renderStepIndicator();
+
+            if (currentStep >= scenario.steps.length) {
+                document.getElementById('next-btn').disabled = true;
+            }
+        }
+
+        function applyChangeToTree(change) {
+            // 清除所有状态
+            clearNodeStates(treeState);
+
+            if (change.action === 'insert') {
+                // 找到父节点并插入
+                const parent = findNode(treeState, change.target || getCurrentParent());
+                if (parent) {
+                    parent.children = parent.children || [];
+                    parent.children.splice(change.index, 0, { name: change.node, state: 'new' });
+                }
+            } else if (change.action === 'remove') {
+                // 找到父节点并标记删除
+                const parent = findNode(treeState, getCurrentParent());
+                if (parent && parent.children) {
+                    parent.children.forEach(child => {
+                        child.state = 'removing';
+                    });
+                    setTimeout(() => {
+                        parent.children = [];
+                        renderTree();
+                    }, 500);
+                }
+            } else if (change.action === 'update') {
+                const node = findNode(treeState, change.node);
+                if (node) {
+                    node.value = change.value;
+                    node.state = 'updating';
+                }
+            } else if (change.action === 'down') {
+                const node = findNode(treeState, change.target);
+                if (node) {
+                    node.state = 'current';
+                }
+            }
+
+            renderTree();
+        }
+
+        function clearNodeStates(node) {
+            if (node.state && node.state !== 'removing') {
+                node.state = '';
+            }
+            if (node.children) {
+                node.children.forEach(clearNodeStates);
+            }
+        }
+
+        function findNode(tree, name) {
+            if (tree.name === name) return tree;
+            if (tree.children) {
+                for (const child of tree.children) {
+                    const found = findNode(child, name);
+                    if (found) return found;
+                }
+            }
+            return null;
+        }
+
+        function getCurrentParent() {
+            const scenario = scenarios[currentScenario];
+            // 简化：根据场景返回父节点
+            if (currentScenario === 0) {
+                return currentStep < 3 ? "Root" : "Column";
+            } else if (currentScenario === 2) {
+                return "Parent";
+            }
+            return "Root";
+        }
+
+        // 初始化
+        reset();
+    </script>
+</body>
+</html>

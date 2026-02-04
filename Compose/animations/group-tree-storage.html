@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Counter 示例 - Group 树与 SlotTable 存储</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Monaco', 'Menlo', monospace;
+            background: #f5f5f5;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h2 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 22px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        /* 标签页导航 */
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #e0e0e0;
+            margin-bottom: 25px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 12px 20px;
+            background: transparent;
+            border: none;
+            font-size: 14px;
+            font-weight: 600;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .tab:hover {
+            color: #667eea;
+            background: #f8f9fa;
+        }
+
+        .tab.active {
+            color: #667eea;
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 3px 3px 0 0;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 代码块样式 */
+        .code-example {
+            background: #1e1e1e;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+
+        .code-example-title {
+            color: #888;
+            font-size: 12px;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .code-block {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+            line-height: 1.8;
+            color: #e0e0e0;
+            white-space: pre;
+        }
+
+        .code-keyword { color: #c792ea; }
+        .code-function { color: #82aaff; }
+        .code-string { color: #c3e88d; }
+        .code-comment { color: #546e7a; }
+        .code-annotation { color: #ffcb6b; }
+        .code-highlight { background: rgba(255, 235, 59, 0.2); padding: 2px 4px; border-radius: 3px; }
+
+        /* 分栏布局 */
+        .split-view {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+        }
+
+        .section {
+            background: #fafafa;
+            border-radius: 12px;
+            padding: 20px;
+            border: 2px solid #e0e0e0;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* 树形结构样式 */
+        .tree-node {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin: 8px 0;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .tree-node:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+        }
+
+        .tree-node.selected {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea10, #764ba210);
+            box-shadow: 0 2px 12px rgba(102, 126, 234, 0.2);
+        }
+
+        .tree-node.level-0 { margin-left: 0; }
+        .tree-node.level-1 { margin-left: 25px; }
+        .tree-node.level-2 { margin-left: 50px; }
+        .tree-node.level-3 { margin-left: 75px; }
+
+        .node-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+
+        .node-label {
+            font-weight: 600;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .node-type {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+
+        .node-type.restartable { background: #dbeafe; color: #1e40af; }
+        .node-type.replaceable { background: #fef3c7; color: #92400e; }
+        .node-type.node { background: #fce7f3; color: #9d174d; }
+
+        .node-info {
+            font-size: 12px;
+            color: #666;
+            font-family: 'Monaco', 'Menlo', monospace;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .node-info span {
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .node-info .nodecount {
+            background: #fb923c;
+            color: white;
+        }
+
+        /* 数组存储样式 */
+        .array-section {
+            margin-bottom: 20px;
+        }
+
+        .array-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: white;
+            padding: 10px 15px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 8px 8px 0 0;
+            margin-bottom: 0;
+        }
+
+        .array-content {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .group-block {
+            padding: 12px 15px;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background 0.2s ease;
+        }
+
+        .group-block:last-child {
+            border-bottom: none;
+        }
+
+        .group-block.highlighted {
+            background: linear-gradient(135deg, #667eea10, #764ba210);
+        }
+
+        .group-header {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 8px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .group-header .type-badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+
+        .array-row {
+            display: flex;
+            align-items: center;
+            margin: 4px 0;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+        }
+
+        .array-index {
+            min-width: 45px;
+            color: #999;
+            font-weight: 600;
+        }
+
+        .field-label {
+            color: #dc3545;
+            font-weight: 600;
+            min-width: 100px;
+        }
+
+        .array-value {
+            color: #333;
+        }
+
+        /* Slots 数组样式 */
+        .slot-row {
+            display: flex;
+            align-items: center;
+            padding: 10px 15px;
+            border-bottom: 1px solid #f0f0f0;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            transition: background 0.2s ease;
+        }
+
+        .slot-row:last-child {
+            border-bottom: none;
+        }
+
+        .slot-row.highlighted {
+            background: linear-gradient(135deg, #667eea10, #764ba210);
+        }
+
+        .slot-index {
+            min-width: 45px;
+            color: #999;
+            font-weight: 600;
+        }
+
+        .slot-value {
+            flex: 1;
+            color: #333;
+        }
+
+        .slot-ref {
+            color: #667eea;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        /* 关键要点 */
+        .key-points {
+            background: linear-gradient(135deg, #667eea15, #764ba215);
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin-top: 25px;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .key-points h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+
+        .key-points ul {
+            margin-left: 20px;
+            line-height: 1.8;
+        }
+
+        .key-points li {
+            margin-bottom: 8px;
+            color: #555;
+            font-size: 14px;
+        }
+
+        .key-points code {
+            background: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            color: #667eea;
+        }
+
+        /* 提示框 */
+        .tip-box {
+            background: #fff8e1;
+            border-left: 4px solid #ffc107;
+            padding: 12px 15px;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #856404;
+        }
+
+        /* 响应式 */
+        @media (max-width: 900px) {
+            .split-view {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Counter 示例 - Group 树与 SlotTable 存储</h2>
+        <p class="subtitle">点击左侧 Group 节点，查看对应的 SlotTable 数据</p>
+
+        <!-- 标签页导航 -->
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('code-view')">源代码</button>
+            <button class="tab" onclick="switchTab('storage-view')">存储结构</button>
+            <button class="tab" onclick="switchTab('summary-view')">关键要点</button>
+        </div>
+
+        <!-- Tab 1: 源代码 -->
+        <div id="code-view" class="tab-content active">
+            <div class="code-example">
+                <div class="code-example-title">Counter.kt - 示例组件</div>
+                <div class="code-block"><span class="code-annotation">@Composable</span>
+<span class="code-keyword">fun</span> <span class="code-function">Counter</span>() {                          <span class="code-comment">// Group 0: Restartable Group</span>
+    <span class="code-keyword">var</span> count <span class="code-keyword">by</span> <span class="code-highlight"><span class="code-function">remember</span></span> {         <span class="code-comment">// Group 1: Replaceable Group</span>
+        <span class="code-function">mutableStateOf</span>(<span class="code-string">0</span>)
+    }
+
+    <span class="code-highlight"><span class="code-function">Column</span></span> {                              <span class="code-comment">// Group 2: Node Group (LayoutNode)</span>
+        <span class="code-highlight"><span class="code-function">Text</span></span>(<span class="code-string">"Count: $count"</span>)          <span class="code-comment">// Group 3: Node Group (LayoutNode)</span>
+        <span class="code-highlight"><span class="code-function">Button</span></span>(onClick = { count++ }) { <span class="code-comment">// Group 4: Node Group (LayoutNode)</span>
+            <span class="code-highlight"><span class="code-function">Text</span></span>(<span class="code-string">"Increment"</span>)          <span class="code-comment">// Group 5: Node Group (LayoutNode)</span>
+        }
+    }
+}</div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                <div style="background: #dbeafe; padding: 15px; border-radius: 8px;">
+                    <div style="font-weight: 600; color: #1e40af; margin-bottom: 8px;">Restartable Group</div>
+                    <div style="font-size: 13px; color: #555;">普通 @Composable 函数，支持独立重组</div>
+                </div>
+                <div style="background: #fef3c7; padding: 15px; border-radius: 8px;">
+                    <div style="font-weight: 600; color: #92400e; margin-bottom: 8px;">Replaceable Group</div>
+                    <div style="font-size: 13px; color: #555;">inline 函数（如 remember），轻量级</div>
+                </div>
+                <div style="background: #fce7f3; padding: 15px; border-radius: 8px;">
+                    <div style="font-weight: 600; color: #9d174d; margin-bottom: 8px;">Node Group</div>
+                    <div style="font-size: 13px; color: #555;">对应 LayoutNode，产生实际 UI 节点</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: 存储结构 -->
+        <div id="storage-view" class="tab-content">
+            <div class="tip-box">
+                💡 <strong>交互提示：</strong>点击左侧的 Group 节点，右侧会高亮显示对应的 groups 和 slots 数据
+            </div>
+
+            <div class="split-view">
+                <!-- 左侧：Group 树 -->
+                <div class="section">
+                    <div class="section-title">📊 Group 树结构</div>
+
+                    <div class="tree-node level-0 selected" data-group="0" onclick="selectGroup(0)">
+                        <div class="node-header">
+                            <span class="node-label">Group 0: Counter</span>
+                            <span class="node-type restartable">Restartable</span>
+                        </div>
+                        <div class="node-info">
+                            <span>size=6</span>
+                            <span>dataAnchor=0</span>
+                            <span class="nodecount">nodeCount=3</span>
+                        </div>
+                    </div>
+
+                    <div class="tree-node level-1" data-group="1" onclick="selectGroup(1)">
+                        <div class="node-header">
+                            <span class="node-label">Group 1: remember</span>
+                            <span class="node-type replaceable">Replaceable</span>
+                        </div>
+                        <div class="node-info">
+                            <span>size=1</span>
+                            <span>dataAnchor=0</span>
+                            <span class="nodecount">nodeCount=0</span>
+                        </div>
+                    </div>
+
+                    <div class="tree-node level-1" data-group="2" onclick="selectGroup(2)">
+                        <div class="node-header">
+                            <span class="node-label">Group 2: Column</span>
+                            <span class="node-type node">Node</span>
+                        </div>
+                        <div class="node-info">
+                            <span>size=4</span>
+                            <span>dataAnchor=1</span>
+                            <span class="nodecount">nodeCount=2</span>
+                        </div>
+                    </div>
+
+                    <div class="tree-node level-2" data-group="3" onclick="selectGroup(3)">
+                        <div class="node-header">
+                            <span class="node-label">Group 3: Text</span>
+                            <span class="node-type node">Node</span>
+                        </div>
+                        <div class="node-info">
+                            <span>size=1</span>
+                            <span>dataAnchor=3</span>
+                            <span class="nodecount">nodeCount=0</span>
+                        </div>
+                    </div>
+
+                    <div class="tree-node level-2" data-group="4" onclick="selectGroup(4)">
+                        <div class="node-header">
+                            <span class="node-label">Group 4: Button</span>
+                            <span class="node-type node">Node</span>
+                        </div>
+                        <div class="node-info">
+                            <span>size=2</span>
+                            <span>dataAnchor=4</span>
+                            <span class="nodecount">nodeCount=1</span>
+                        </div>
+                    </div>
+
+                    <div class="tree-node level-3" data-group="5" onclick="selectGroup(5)">
+                        <div class="node-header">
+                            <span class="node-label">Group 5: Text</span>
+                            <span class="node-type node">Node</span>
+                        </div>
+                        <div class="node-info">
+                            <span>size=1</span>
+                            <span>dataAnchor=6</span>
+                            <span class="nodecount">nodeCount=0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右侧：SlotTable 存储 -->
+                <div class="section">
+                    <div class="section-title">💾 SlotTable 存储</div>
+
+                    <!-- groups 数组 -->
+                    <div class="array-section">
+                        <div class="array-title">groups 数组 (IntArray) - 每组 5 个 Int</div>
+                        <div class="array-content" id="groups-content">
+                            <div class="group-block highlighted" data-group="0">
+                                <div class="group-header">
+                                    Group 0: Counter
+                                    <span class="type-badge" style="background: #dbeafe; color: #1e40af;">Restartable</span>
+                                </div>
+                                <div class="array-row"><span class="array-index">[0]</span><span class="field-label">key</span><span class="array-value">= 0x7A3B2C1D</span></div>
+                                <div class="array-row"><span class="array-index">[1]</span><span class="field-label">groupInfo</span><span class="array-value">= 0x60 (nodeCount=3)</span></div>
+                                <div class="array-row"><span class="array-index">[2]</span><span class="field-label">parentAnchor</span><span class="array-value">= -1 (根组)</span></div>
+                                <div class="array-row"><span class="array-index">[3]</span><span class="field-label">size</span><span class="array-value">= 6</span></div>
+                                <div class="array-row"><span class="array-index">[4]</span><span class="field-label">dataAnchor</span><span class="array-value">= 0</span></div>
+                            </div>
+                            <div class="group-block" data-group="1">
+                                <div class="group-header">
+                                    Group 1: remember
+                                    <span class="type-badge" style="background: #fef3c7; color: #92400e;">Replaceable</span>
+                                </div>
+                                <div class="array-row"><span class="array-index">[5]</span><span class="field-label">key</span><span class="array-value">= 0x1E2F3A4B</span></div>
+                                <div class="array-row"><span class="array-index">[6]</span><span class="field-label">groupInfo</span><span class="array-value">= 0x00 (nodeCount=0)</span></div>
+                                <div class="array-row"><span class="array-index">[7]</span><span class="field-label">parentAnchor</span><span class="array-value">= 0</span></div>
+                                <div class="array-row"><span class="array-index">[8]</span><span class="field-label">size</span><span class="array-value">= 1</span></div>
+                                <div class="array-row"><span class="array-index">[9]</span><span class="field-label">dataAnchor</span><span class="array-value">= 0</span></div>
+                            </div>
+                            <div class="group-block" data-group="2">
+                                <div class="group-header">
+                                    Group 2: Column
+                                    <span class="type-badge" style="background: #fce7f3; color: #9d174d;">Node</span>
+                                </div>
+                                <div class="array-row"><span class="array-index">[10]</span><span class="field-label">key</span><span class="array-value">= 0x5C6D7E8F</span></div>
+                                <div class="array-row"><span class="array-index">[11]</span><span class="field-label">groupInfo</span><span class="array-value">= 0x41 (isNode + nodeCount=2)</span></div>
+                                <div class="array-row"><span class="array-index">[12]</span><span class="field-label">parentAnchor</span><span class="array-value">= 0</span></div>
+                                <div class="array-row"><span class="array-index">[13]</span><span class="field-label">size</span><span class="array-value">= 4</span></div>
+                                <div class="array-row"><span class="array-index">[14]</span><span class="field-label">dataAnchor</span><span class="array-value">= 1</span></div>
+                            </div>
+                            <div class="group-block" data-group="3">
+                                <div class="group-header">
+                                    Group 3: Text
+                                    <span class="type-badge" style="background: #fce7f3; color: #9d174d;">Node</span>
+                                </div>
+                                <div class="array-row"><span class="array-index">[15]</span><span class="field-label">key</span><span class="array-value">= 0x9A0B1C2D</span></div>
+                                <div class="array-row"><span class="array-index">[16]</span><span class="field-label">groupInfo</span><span class="array-value">= 0x01 (isNode)</span></div>
+                                <div class="array-row"><span class="array-index">[17]</span><span class="field-label">parentAnchor</span><span class="array-value">= 10</span></div>
+                                <div class="array-row"><span class="array-index">[18]</span><span class="field-label">size</span><span class="array-value">= 1</span></div>
+                                <div class="array-row"><span class="array-index">[19]</span><span class="field-label">dataAnchor</span><span class="array-value">= 3</span></div>
+                            </div>
+                            <div class="group-block" data-group="4">
+                                <div class="group-header">
+                                    Group 4: Button
+                                    <span class="type-badge" style="background: #fce7f3; color: #9d174d;">Node</span>
+                                </div>
+                                <div class="array-row"><span class="array-index">[20]</span><span class="field-label">key</span><span class="array-value">= 0x3E4F5061</span></div>
+                                <div class="array-row"><span class="array-index">[21]</span><span class="field-label">groupInfo</span><span class="array-value">= 0x21 (isNode + nodeCount=1)</span></div>
+                                <div class="array-row"><span class="array-index">[22]</span><span class="field-label">parentAnchor</span><span class="array-value">= 10</span></div>
+                                <div class="array-row"><span class="array-index">[23]</span><span class="field-label">size</span><span class="array-value">= 2</span></div>
+                                <div class="array-row"><span class="array-index">[24]</span><span class="field-label">dataAnchor</span><span class="array-value">= 4</span></div>
+                            </div>
+                            <div class="group-block" data-group="5">
+                                <div class="group-header">
+                                    Group 5: Text
+                                    <span class="type-badge" style="background: #fce7f3; color: #9d174d;">Node</span>
+                                </div>
+                                <div class="array-row"><span class="array-index">[25]</span><span class="field-label">key</span><span class="array-value">= 0x7283940A</span></div>
+                                <div class="array-row"><span class="array-index">[26]</span><span class="field-label">groupInfo</span><span class="array-value">= 0x01 (isNode)</span></div>
+                                <div class="array-row"><span class="array-index">[27]</span><span class="field-label">parentAnchor</span><span class="array-value">= 20</span></div>
+                                <div class="array-row"><span class="array-index">[28]</span><span class="field-label">size</span><span class="array-value">= 1</span></div>
+                                <div class="array-row"><span class="array-index">[29]</span><span class="field-label">dataAnchor</span><span class="array-value">= 6</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- slots 数组 -->
+                    <div class="array-section">
+                        <div class="array-title">slots 数组 (Array&lt;Any?&gt;)</div>
+                        <div class="array-content" id="slots-content">
+                            <div class="slot-row highlighted" data-slots="0">
+                                <span class="slot-index">[0]</span>
+                                <span class="slot-value">MutableState&lt;Int&gt;(0)</span>
+                                <span class="slot-ref">← Group 1 (remember)</span>
+                            </div>
+                            <div class="slot-row" data-slots="1,2">
+                                <span class="slot-index">[1]</span>
+                                <span class="slot-value">LayoutNode (Column)</span>
+                                <span class="slot-ref">← Group 2</span>
+                            </div>
+                            <div class="slot-row" data-slots="1,2">
+                                <span class="slot-index">[2]</span>
+                                <span class="slot-value">Modifier.Companion</span>
+                                <span class="slot-ref">← Group 2</span>
+                            </div>
+                            <div class="slot-row" data-slots="3">
+                                <span class="slot-index">[3]</span>
+                                <span class="slot-value">"Count: 0"</span>
+                                <span class="slot-ref">← Group 3 (Text)</span>
+                            </div>
+                            <div class="slot-row" data-slots="4,5">
+                                <span class="slot-index">[4]</span>
+                                <span class="slot-value">LayoutNode (Button)</span>
+                                <span class="slot-ref">← Group 4</span>
+                            </div>
+                            <div class="slot-row" data-slots="4,5">
+                                <span class="slot-index">[5]</span>
+                                <span class="slot-value">lambda { count++ }</span>
+                                <span class="slot-ref">← Group 4</span>
+                            </div>
+                            <div class="slot-row" data-slots="6">
+                                <span class="slot-index">[6]</span>
+                                <span class="slot-value">"Increment"</span>
+                                <span class="slot-ref">← Group 5 (Text)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 3: 关键要点 -->
+        <div id="summary-view" class="tab-content">
+            <div class="key-points" style="margin-top: 0;">
+                <h3>🔑 SlotTable 存储结构要点</h3>
+                <ul>
+                    <li><code>groups</code> 数组：每个 Group 占用 <strong>5 个连续的 Int</strong>（索引 i×5 到 i×5+4）</li>
+                    <li><code>slots</code> 数组：存储实际的运行时数据（MutableState、LayoutNode、String、Lambda 等）</li>
+                    <li><code>parentAnchor</code>：存储父组在 groups 数组中的起始索引，-1 表示根组</li>
+                    <li><code>dataAnchor</code>：指向该组数据在 slots 数组中的起始位置</li>
+                    <li><code>size</code>：当前组的大小 = 1（自己）+ 所有子组的 size 之和</li>
+                </ul>
+            </div>
+
+            <div class="key-points">
+                <h3>📊 Group 类型与 nodeCount</h3>
+                <ul>
+                    <li><strong>Restartable Group</strong>：普通 @Composable 函数，支持独立重组</li>
+                    <li><strong>Replaceable Group</strong>：inline 函数（如 remember），轻量级，不支持独立重组</li>
+                    <li><strong>Node Group</strong>：<code>isNode=true</code>，对应一个 LayoutNode，产生实际 UI 节点</li>
+                    <li><code>nodeCount</code>：子树中包含的 LayoutNode 数量（用于 Applier 快速定位和跳过）</li>
+                </ul>
+            </div>
+
+            <div class="key-points">
+                <h3>🔗 Group 树与 LayoutNode 树的关系</h3>
+                <ul>
+                    <li>Group 树包含所有 Composable 调用产生的组（包括 remember、key 等不产生 UI 的组）</li>
+                    <li>LayoutNode 树只包含 <code>isNode=true</code> 的 Group 对应的节点</li>
+                    <li>本例中：6 个 Group → 4 个 LayoutNode（Column、Text×2、Button）</li>
+                    <li>remember 组不产生 LayoutNode，但存储了 MutableState 到 slots 中</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 标签页切换
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            document.querySelector(`[onclick="switchTab('${tabId}')"]`).classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+        }
+
+        // Group 与 Slots 的映射关系
+        const groupSlotMapping = {
+            0: { slots: [] },           // Counter: 无直接数据
+            1: { slots: [0] },          // remember: MutableState
+            2: { slots: [1, 2] },       // Column: LayoutNode + Modifier
+            3: { slots: [3] },          // Text: 文本内容
+            4: { slots: [4, 5] },       // Button: LayoutNode + onClick
+            5: { slots: [6] }           // Text: 文本内容
+        };
+
+        // 选择 Group
+        function selectGroup(groupIndex) {
+            // 更新树节点选中状态
+            document.querySelectorAll('.tree-node').forEach(node => {
+                node.classList.remove('selected');
+            });
+            document.querySelector(`.tree-node[data-group="${groupIndex}"]`).classList.add('selected');
+
+            // 更新 groups 数组高亮
+            document.querySelectorAll('.group-block').forEach(block => {
+                block.classList.remove('highlighted');
+            });
+            document.querySelector(`.group-block[data-group="${groupIndex}"]`).classList.add('highlighted');
+
+            // 更新 slots 数组高亮
+            document.querySelectorAll('.slot-row').forEach(row => {
+                row.classList.remove('highlighted');
+            });
+
+            const slotsToHighlight = groupSlotMapping[groupIndex].slots;
+            slotsToHighlight.forEach(slotIndex => {
+                document.querySelectorAll('.slot-row').forEach(row => {
+                    const rowSlots = row.getAttribute('data-slots').split(',').map(Number);
+                    if (rowSlots.includes(slotIndex)) {
+                        row.classList.add('highlighted');
+                    }
+                });
+            });
+
+            // 滚动到对应的 group-block
+            const groupBlock = document.querySelector(`.group-block[data-group="${groupIndex}"]`);
+            if (groupBlock) {
+                groupBlock.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+
+        // 初始化
+        selectGroup(0);
+    </script>
+</body>
+</html>

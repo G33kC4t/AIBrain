@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>复用池机制演示</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Monaco', monospace;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            background: #0f0f23;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            padding: 30px;
+            max-width: 1300px;
+            margin: 0 auto;
+            border: 1px solid #333;
+        }
+
+        h2 {
+            text-align: center;
+            color: #00d9ff;
+            margin-bottom: 10px;
+            font-size: 24px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        /* 场景选择器 */
+        .scenario-selector {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .scenario-btn {
+            padding: 10px 20px;
+            border: 2px solid #333;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #1a1a2e;
+            color: #aaa;
+        }
+
+        .scenario-btn:hover {
+            border-color: #00d9ff;
+            color: #00d9ff;
+        }
+
+        .scenario-btn.active {
+            background: linear-gradient(135deg, #00d9ff 0%, #0099ff 100%);
+            color: #000;
+            border-color: #00d9ff;
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 200px 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+            align-items: start;
+        }
+
+        .panel {
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #333;
+            min-height: 350px;
+        }
+
+        .panel-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #00d9ff;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-title::before {
+            content: '';
+            width: 4px;
+            height: 16px;
+            background: #00d9ff;
+            border-radius: 2px;
+        }
+
+        /* 中间箭头区 */
+        .arrow-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 40px;
+            padding: 40px 10px;
+        }
+
+        .arrow-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            opacity: 0.3;
+            transition: all 0.4s ease;
+        }
+
+        .arrow-container.active {
+            opacity: 1;
+        }
+
+        .arrow-container.deactivate svg {
+            fill: #f5b041;
+        }
+
+        .arrow-container.reuse svg {
+            fill: #9b59b6;
+        }
+
+        .arrow-container svg {
+            width: 50px;
+            height: 30px;
+            fill: #555;
+            transition: all 0.3s ease;
+        }
+
+        .arrow-label {
+            font-size: 11px;
+            color: #888;
+            text-align: center;
+        }
+
+        .arrow-container.active .arrow-label {
+            color: #fff;
+        }
+
+        /* Subcomposition 卡片 */
+        .slot-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .slot-card {
+            background: #0d1117;
+            border-radius: 8px;
+            padding: 12px;
+            border: 2px solid #333;
+            transition: all 0.4s ease;
+        }
+
+        .slot-card.highlight-out {
+            border-color: #f5b041;
+            animation: slideOut 0.5s ease forwards;
+        }
+
+        .slot-card.highlight-in {
+            border-color: #9b59b6;
+            animation: slideIn 0.5s ease;
+        }
+
+        .slot-card.active {
+            border-color: #58d68d;
+        }
+
+        .slot-card.deactivated {
+            border-color: #f5b041;
+            opacity: 0.8;
+        }
+
+        @keyframes slideOut {
+            0% { transform: translateX(0); opacity: 1; }
+            100% { transform: translateX(50px); opacity: 0; }
+        }
+
+        @keyframes slideIn {
+            0% { transform: translateX(-50px); opacity: 0; }
+            100% { transform: translateX(0); opacity: 1; }
+        }
+
+        .slot-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .slot-id {
+            font-size: 12px;
+            font-weight: bold;
+            color: #00d9ff;
+        }
+
+        .slot-type {
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: rgba(88, 214, 141, 0.2);
+            color: #58d68d;
+        }
+
+        .slot-type.text { background: rgba(93, 173, 226, 0.2); color: #5dade2; }
+        .slot-type.image { background: rgba(155, 89, 182, 0.2); color: #9b59b6; }
+        .slot-type.video { background: rgba(241, 196, 15, 0.2); color: #f1c40f; }
+
+        .slot-content {
+            font-size: 11px;
+            color: #888;
+        }
+
+        .slot-content span {
+            color: #58d68d;
+        }
+
+        .empty-state {
+            color: #555;
+            font-size: 12px;
+            text-align: center;
+            padding: 30px;
+        }
+
+        /* 复用池容量指示器 */
+        .pool-capacity {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #0d1117;
+            border-radius: 6px;
+        }
+
+        .capacity-bar {
+            flex: 1;
+            height: 8px;
+            background: #333;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .capacity-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #58d68d, #f5b041);
+            border-radius: 4px;
+            transition: width 0.4s ease;
+        }
+
+        .capacity-text {
+            font-size: 11px;
+            color: #aaa;
+            min-width: 50px;
+            text-align: right;
+        }
+
+        /* 操作日志 */
+        .log-panel {
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #333;
+            margin-top: 20px;
+        }
+
+        .log-list {
+            max-height: 120px;
+            overflow-y: auto;
+        }
+
+        .log-item {
+            font-size: 11px;
+            padding: 6px 10px;
+            margin-bottom: 4px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .log-item.deactivate { background: rgba(245, 176, 65, 0.1); color: #f5b041; }
+        .log-item.reuse { background: rgba(155, 89, 182, 0.1); color: #9b59b6; }
+        .log-item.create { background: rgba(93, 173, 226, 0.1); color: #5dade2; }
+        .log-item.dispose { background: rgba(236, 112, 99, 0.1); color: #ec7063; }
+
+        /* 控制区 */
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #00d9ff 0%, #0099ff 100%);
+            color: #000;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 217, 255, 0.4);
+        }
+
+        .btn-secondary {
+            background: #333;
+            color: #aaa;
+        }
+
+        .btn-secondary:hover {
+            background: #444;
+            color: #fff;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* 说明区 */
+        .explanation {
+            background: rgba(0, 217, 255, 0.1);
+            border: 1px solid rgba(0, 217, 255, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 13px;
+            color: #aaa;
+            line-height: 1.6;
+        }
+
+        .explanation strong {
+            color: #00d9ff;
+        }
+
+        .explanation code {
+            background: #0d1117;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #58d68d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>复用池机制演示</h2>
+        <p class="subtitle">展示 Subcomposition 如何被停用、缓存和复用</p>
+
+        <div class="scenario-selector">
+            <button class="scenario-btn active" data-scenario="basic">基础复用</button>
+            <button class="scenario-btn" data-scenario="contentType">contentType 复用</button>
+            <button class="scenario-btn" data-scenario="overflow">池溢出处理</button>
+        </div>
+
+        <div class="main-layout">
+            <!-- 活跃列表 -->
+            <div class="panel">
+                <div class="panel-title">活跃的 Subcomposition</div>
+                <div class="slot-list" id="active-list"></div>
+            </div>
+
+            <!-- 箭头区 -->
+            <div class="arrow-panel">
+                <div class="arrow-container deactivate" id="arrow-deactivate">
+                    <svg viewBox="0 0 50 30">
+                        <path d="M5 15 L35 15 M28 8 L35 15 L28 22" stroke="currentColor" stroke-width="3" fill="none"/>
+                    </svg>
+                    <div class="arrow-label">停用<br>deactivate</div>
+                </div>
+                <div class="arrow-container reuse" id="arrow-reuse">
+                    <svg viewBox="0 0 50 30">
+                        <path d="M45 15 L15 15 M22 8 L15 15 L22 22" stroke="currentColor" stroke-width="3" fill="none"/>
+                    </svg>
+                    <div class="arrow-label">复用<br>reuse</div>
+                </div>
+            </div>
+
+            <!-- 复用池 -->
+            <div class="panel">
+                <div class="panel-title">复用池 (Reuse Pool)</div>
+                <div class="pool-capacity">
+                    <span style="font-size: 11px; color: #888;">容量:</span>
+                    <div class="capacity-bar">
+                        <div class="capacity-fill" id="capacity-fill" style="width: 0%"></div>
+                    </div>
+                    <span class="capacity-text" id="capacity-text">0/3</span>
+                </div>
+                <div class="slot-list" id="pool-list"></div>
+            </div>
+        </div>
+
+        <!-- 日志 -->
+        <div class="log-panel">
+            <div class="panel-title">操作日志</div>
+            <div class="log-list" id="log-list"></div>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-primary" id="btn-next">下一步</button>
+            <button class="btn btn-secondary" id="btn-reset">重置</button>
+            <button class="btn btn-secondary" id="btn-auto">自动播放</button>
+        </div>
+
+        <div class="explanation" id="explanation">
+            <strong>💡 选择一个场景开始演示</strong><br>
+            复用池是 SubcomposeLayout 性能优化的核心机制。停用的 Subcomposition 会被缓存，供后续复用。
+        </div>
+    </div>
+
+    <script>
+        const maxPoolSize = 3;
+        let currentScenario = 'basic';
+        let currentStep = 0;
+        let autoPlayInterval = null;
+
+        let activeSlots = [];
+        let poolSlots = [];
+
+        const scenarios = {
+            basic: {
+                name: '基础复用',
+                steps: [
+                    {
+                        action: 'init',
+                        activeSlots: [
+                            { id: 'A', type: 'text', content: 'Item A' },
+                            { id: 'B', type: 'text', content: 'Item B' },
+                            { id: 'C', type: 'text', content: 'Item C' }
+                        ],
+                        poolSlots: [],
+                        explanation: '<strong>💡 初始状态</strong><br>当前有 3 个活跃的 Subcomposition (A, B, C)，复用池为空。'
+                    },
+                    {
+                        action: 'deactivate',
+                        target: 'A',
+                        explanation: '<strong>💡 停用 A</strong><br>调用结束后，A 不再被使用。将 A 移入复用池，保留其 SlotTable 和状态。'
+                    },
+                    {
+                        action: 'deactivate',
+                        target: 'B',
+                        explanation: '<strong>💡 停用 B</strong><br>B 也不再需要，移入复用池。现在池中有 A 和 B。'
+                    },
+                    {
+                        action: 'reuse',
+                        newId: 'D',
+                        reuseFrom: 'A',
+                        explanation: '<strong>💡 复用创建 D</strong><br>需要显示新内容 D。从复用池取出 A（FIFO），重新组合为 D。避免了创建新 Subcomposition 的开销。'
+                    },
+                    {
+                        action: 'reuse',
+                        newId: 'E',
+                        reuseFrom: 'B',
+                        explanation: '<strong>💡 复用创建 E</strong><br>继续需要 E，从池中取出 B 复用。复用池现在为空。'
+                    }
+                ]
+            },
+            contentType: {
+                name: 'contentType 复用',
+                steps: [
+                    {
+                        action: 'init',
+                        activeSlots: [
+                            { id: 'Text1', type: 'text', content: '文本消息' },
+                            { id: 'Image1', type: 'image', content: '图片消息' }
+                        ],
+                        poolSlots: [
+                            { id: 'Text0', type: 'text', content: '(缓存)' },
+                            { id: 'Image0', type: 'image', content: '(缓存)' }
+                        ],
+                        explanation: '<strong>💡 带 contentType 的复用池</strong><br>复用池按 <code>contentType</code> 分类存储。Text 类型和 Image 类型分开管理。'
+                    },
+                    {
+                        action: 'reuse_typed',
+                        newId: 'Text2',
+                        type: 'text',
+                        reuseFrom: 'Text0',
+                        explanation: '<strong>💡 按类型复用 - 文本</strong><br>需要新的文本消息。优先从相同 <code>contentType="text"</code> 的池中获取，复用 Text0。结构相似，重组开销小。'
+                    },
+                    {
+                        action: 'reuse_typed',
+                        newId: 'Image2',
+                        type: 'image',
+                        reuseFrom: 'Image0',
+                        explanation: '<strong>💡 按类型复用 - 图片</strong><br>需要新的图片消息。从 <code>contentType="image"</code> 池中获取 Image0。类型匹配，复用效率最高。'
+                    },
+                    {
+                        action: 'create_new',
+                        newId: 'Video1',
+                        type: 'video',
+                        explanation: '<strong>💡 无匹配类型 - 新建</strong><br>需要视频消息，但池中没有 <code>contentType="video"</code>。只能创建新的 Subcomposition。这就是为什么要使用 contentType 的原因。'
+                    }
+                ]
+            },
+            overflow: {
+                name: '池溢出处理',
+                steps: [
+                    {
+                        action: 'init',
+                        activeSlots: [
+                            { id: 'A', type: 'text', content: 'Item A' }
+                        ],
+                        poolSlots: [
+                            { id: 'X', type: 'text', content: '(最早)' },
+                            { id: 'Y', type: 'text', content: '(中间)' },
+                            { id: 'Z', type: 'text', content: '(最新)' }
+                        ],
+                        explanation: '<strong>💡 复用池已满</strong><br>复用池容量为 3，当前已满 (X, Y, Z)。活跃列表有 A。'
+                    },
+                    {
+                        action: 'deactivate_overflow',
+                        target: 'A',
+                        dispose: 'X',
+                        explanation: '<strong>💡 停用导致溢出</strong><br>A 要停用，但池已满。采用 FIFO 策略：<strong>释放最早的 X</strong>（销毁 SlotTable，触发 onDispose），然后 A 进入池尾。'
+                    },
+                    {
+                        action: 'show_result',
+                        explanation: '<strong>💡 溢出处理结果</strong><br>X 已被释放（内存回收），池中现在是 [Y, Z, A]。合理的池大小能平衡内存占用和复用效率。'
+                    }
+                ]
+            }
+        };
+
+        function renderActiveList() {
+            const container = document.getElementById('active-list');
+            if (activeSlots.length === 0) {
+                container.innerHTML = '<div class="empty-state">暂无活跃的 Subcomposition</div>';
+                return;
+            }
+            container.innerHTML = activeSlots.map(s => `
+                <div class="slot-card active ${s.animClass || ''}" data-id="${s.id}">
+                    <div class="slot-header">
+                        <span class="slot-id">slotId="${s.id}"</span>
+                        <span class="slot-type ${s.type}">${s.type}</span>
+                    </div>
+                    <div class="slot-content">${s.content}</div>
+                </div>
+            `).join('');
+        }
+
+        function renderPoolList() {
+            const container = document.getElementById('pool-list');
+            const capacityFill = document.getElementById('capacity-fill');
+            const capacityText = document.getElementById('capacity-text');
+
+            capacityFill.style.width = `${(poolSlots.length / maxPoolSize) * 100}%`;
+            capacityText.textContent = `${poolSlots.length}/${maxPoolSize}`;
+
+            if (poolSlots.length === 0) {
+                container.innerHTML = '<div class="empty-state">复用池为空</div>';
+                return;
+            }
+            container.innerHTML = poolSlots.map(s => `
+                <div class="slot-card deactivated ${s.animClass || ''}" data-id="${s.id}">
+                    <div class="slot-header">
+                        <span class="slot-id">slotId="${s.id}"</span>
+                        <span class="slot-type ${s.type}">${s.type}</span>
+                    </div>
+                    <div class="slot-content">${s.content}</div>
+                </div>
+            `).join('');
+        }
+
+        function addLog(type, message) {
+            const logList = document.getElementById('log-list');
+            const icons = { deactivate: '⏸️', reuse: '♻️', create: '🆕', dispose: '🗑️' };
+            const log = document.createElement('div');
+            log.className = `log-item ${type}`;
+            log.innerHTML = `<span>${icons[type]}</span>${message}`;
+            logList.insertBefore(log, logList.firstChild);
+        }
+
+        function highlightArrow(type) {
+            document.querySelectorAll('.arrow-container').forEach(el => el.classList.remove('active'));
+            if (type) {
+                document.getElementById(`arrow-${type}`).classList.add('active');
+            }
+        }
+
+        function executeStep() {
+            const scenario = scenarios[currentScenario];
+            const step = scenario.steps[currentStep];
+
+            document.getElementById('explanation').innerHTML = step.explanation;
+            highlightArrow(null);
+
+            switch (step.action) {
+                case 'init':
+                    activeSlots = JSON.parse(JSON.stringify(step.activeSlots));
+                    poolSlots = JSON.parse(JSON.stringify(step.poolSlots));
+                    renderActiveList();
+                    renderPoolList();
+                    break;
+
+                case 'deactivate':
+                    highlightArrow('deactivate');
+                    const idx = activeSlots.findIndex(s => s.id === step.target);
+                    if (idx >= 0) {
+                        activeSlots[idx].animClass = 'highlight-out';
+                        renderActiveList();
+                        setTimeout(() => {
+                            const removed = activeSlots.splice(idx, 1)[0];
+                            removed.animClass = 'highlight-in';
+                            removed.content = '(缓存)';
+                            poolSlots.push(removed);
+                            renderActiveList();
+                            renderPoolList();
+                            addLog('deactivate', `${step.target} 停用，放入复用池`);
+                            setTimeout(() => {
+                                poolSlots[poolSlots.length - 1].animClass = '';
+                                renderPoolList();
+                            }, 500);
+                        }, 500);
+                    }
+                    break;
+
+                case 'reuse':
+                    highlightArrow('reuse');
+                    const poolIdx = poolSlots.findIndex(s => s.id === step.reuseFrom);
+                    if (poolIdx >= 0) {
+                        poolSlots[poolIdx].animClass = 'highlight-out';
+                        renderPoolList();
+                        setTimeout(() => {
+                            const reused = poolSlots.splice(poolIdx, 1)[0];
+                            reused.id = step.newId;
+                            reused.content = `Item ${step.newId}`;
+                            reused.animClass = 'highlight-in';
+                            activeSlots.push(reused);
+                            renderPoolList();
+                            renderActiveList();
+                            addLog('reuse', `复用 ${step.reuseFrom} → 创建 ${step.newId}`);
+                            setTimeout(() => {
+                                activeSlots[activeSlots.length - 1].animClass = '';
+                                renderActiveList();
+                            }, 500);
+                        }, 500);
+                    }
+                    break;
+
+                case 'reuse_typed':
+                    highlightArrow('reuse');
+                    const typedIdx = poolSlots.findIndex(s => s.type === step.type);
+                    if (typedIdx >= 0) {
+                        poolSlots[typedIdx].animClass = 'highlight-out';
+                        renderPoolList();
+                        setTimeout(() => {
+                            const reused = poolSlots.splice(typedIdx, 1)[0];
+                            reused.id = step.newId;
+                            reused.content = step.type === 'text' ? '文本消息' : '图片消息';
+                            reused.animClass = 'highlight-in';
+                            activeSlots.push(reused);
+                            renderPoolList();
+                            renderActiveList();
+                            addLog('reuse', `按 contentType="${step.type}" 复用 → ${step.newId}`);
+                            setTimeout(() => {
+                                activeSlots[activeSlots.length - 1].animClass = '';
+                                renderActiveList();
+                            }, 500);
+                        }, 500);
+                    }
+                    break;
+
+                case 'create_new':
+                    activeSlots.push({
+                        id: step.newId,
+                        type: step.type,
+                        content: '视频消息',
+                        animClass: 'highlight-in'
+                    });
+                    renderActiveList();
+                    addLog('create', `池中无 contentType="${step.type}"，新建 ${step.newId}`);
+                    setTimeout(() => {
+                        activeSlots[activeSlots.length - 1].animClass = '';
+                        renderActiveList();
+                    }, 500);
+                    break;
+
+                case 'deactivate_overflow':
+                    highlightArrow('deactivate');
+                    const aIdx = activeSlots.findIndex(s => s.id === step.target);
+                    if (aIdx >= 0) {
+                        activeSlots[aIdx].animClass = 'highlight-out';
+                        renderActiveList();
+                        setTimeout(() => {
+                            // 先释放最早的
+                            const disposed = poolSlots.shift();
+                            addLog('dispose', `池满，释放 ${disposed.id}（SlotTable 销毁）`);
+
+                            // A 进入池
+                            const removed = activeSlots.splice(aIdx, 1)[0];
+                            removed.animClass = 'highlight-in';
+                            removed.content = '(缓存)';
+                            poolSlots.push(removed);
+                            renderActiveList();
+                            renderPoolList();
+                            addLog('deactivate', `${step.target} 停用，进入复用池`);
+                            setTimeout(() => {
+                                poolSlots[poolSlots.length - 1].animClass = '';
+                                renderPoolList();
+                            }, 500);
+                        }, 500);
+                    }
+                    break;
+
+                case 'show_result':
+                    // 仅显示说明
+                    break;
+            }
+        }
+
+        function nextStep() {
+            const scenario = scenarios[currentScenario];
+            if (currentStep < scenario.steps.length - 1) {
+                currentStep++;
+                executeStep();
+            }
+            document.getElementById('btn-next').disabled = currentStep >= scenario.steps.length - 1;
+        }
+
+        function reset() {
+            currentStep = 0;
+            document.getElementById('log-list').innerHTML = '';
+            document.getElementById('btn-next').disabled = false;
+            highlightArrow(null);
+            executeStep();
+
+            if (autoPlayInterval) {
+                clearInterval(autoPlayInterval);
+                autoPlayInterval = null;
+                document.getElementById('btn-auto').textContent = '自动播放';
+            }
+        }
+
+        function selectScenario(scenario) {
+            currentScenario = scenario;
+            document.querySelectorAll('.scenario-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.scenario === scenario);
+            });
+            reset();
+        }
+
+        function toggleAutoPlay() {
+            const btn = document.getElementById('btn-auto');
+            if (autoPlayInterval) {
+                clearInterval(autoPlayInterval);
+                autoPlayInterval = null;
+                btn.textContent = '自动播放';
+            } else {
+                btn.textContent = '停止播放';
+                autoPlayInterval = setInterval(() => {
+                    const scenario = scenarios[currentScenario];
+                    if (currentStep < scenario.steps.length - 1) {
+                        nextStep();
+                    } else {
+                        clearInterval(autoPlayInterval);
+                        autoPlayInterval = null;
+                        btn.textContent = '自动播放';
+                    }
+                }, 2000);
+            }
+        }
+
+        // 事件绑定
+        document.querySelectorAll('.scenario-btn').forEach(btn => {
+            btn.addEventListener('click', () => selectScenario(btn.dataset.scenario));
+        });
+        document.getElementById('btn-next').addEventListener('click', nextStep);
+        document.getElementById('btn-reset').addEventListener('click', reset);
+        document.getElementById('btn-auto').addEventListener('click', toggleAutoPlay);
+
+        // 初始化
+        reset();
+    </script>
+</body>
+</html>

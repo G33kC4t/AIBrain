@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subcomposition 生命周期演示</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Monaco', monospace;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            background: #0f0f23;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            padding: 30px;
+            max-width: 1200px;
+            margin: 0 auto;
+            border: 1px solid #333;
+        }
+
+        h2 {
+            text-align: center;
+            color: #00d9ff;
+            margin-bottom: 10px;
+            font-size: 24px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 30px;
+            margin-bottom: 20px;
+        }
+
+        /* 状态机图 */
+        .state-machine {
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #333;
+        }
+
+        .state-machine-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #00d9ff;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .state-machine-title::before {
+            content: '';
+            width: 4px;
+            height: 16px;
+            background: #00d9ff;
+            border-radius: 2px;
+        }
+
+        .state-diagram {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .state-box {
+            width: 120px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: bold;
+            transition: all 0.4s ease;
+            border: 2px solid transparent;
+        }
+
+        .state-box.not-exist {
+            background: #2d2d44;
+            color: #666;
+            border-color: #444;
+        }
+
+        .state-box.created {
+            background: #1e3a5f;
+            color: #5dade2;
+            border-color: #5dade2;
+        }
+
+        .state-box.active {
+            background: #1e5f3a;
+            color: #58d68d;
+            border-color: #58d68d;
+        }
+
+        .state-box.deactivated {
+            background: #5f4a1e;
+            color: #f5b041;
+            border-color: #f5b041;
+        }
+
+        .state-box.disposed {
+            background: #5f1e1e;
+            color: #ec7063;
+            border-color: #ec7063;
+        }
+
+        .state-box.current {
+            transform: scale(1.1);
+            box-shadow: 0 0 20px currentColor;
+        }
+
+        .arrow {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #666;
+            font-size: 11px;
+            transition: all 0.3s ease;
+        }
+
+        .arrow.active {
+            color: #00d9ff;
+        }
+
+        .arrow svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+
+        .arrow-label {
+            font-size: 10px;
+            max-width: 100px;
+            text-align: center;
+        }
+
+        /* 场景演示区 */
+        .demo-area {
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #333;
+        }
+
+        .demo-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #00d9ff;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .demo-title::before {
+            content: '';
+            width: 4px;
+            height: 16px;
+            background: #00d9ff;
+            border-radius: 2px;
+        }
+
+        .composition-view {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .section {
+            background: #0d1117;
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .section-label {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .section-label::before {
+            content: '◆';
+            color: #00d9ff;
+            font-size: 8px;
+        }
+
+        /* Subcomposition 卡片 */
+        .subcomposition {
+            background: #1a1a2e;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 2px solid #333;
+            transition: all 0.4s ease;
+        }
+
+        .subcomposition.creating {
+            border-color: #5dade2;
+            animation: pulse-blue 1s ease-in-out;
+        }
+
+        .subcomposition.active {
+            border-color: #58d68d;
+        }
+
+        .subcomposition.deactivating {
+            border-color: #f5b041;
+            opacity: 0.7;
+        }
+
+        .subcomposition.disposing {
+            border-color: #ec7063;
+            opacity: 0.4;
+            transform: scale(0.95);
+        }
+
+        .subcomposition.hidden {
+            display: none;
+        }
+
+        @keyframes pulse-blue {
+            0%, 100% { box-shadow: 0 0 0 rgba(93, 173, 226, 0); }
+            50% { box-shadow: 0 0 20px rgba(93, 173, 226, 0.5); }
+        }
+
+        .subcomp-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .subcomp-id {
+            font-size: 12px;
+            font-weight: bold;
+            color: #00d9ff;
+        }
+
+        .subcomp-status {
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-weight: bold;
+        }
+
+        .subcomp-status.created {
+            background: rgba(93, 173, 226, 0.2);
+            color: #5dade2;
+        }
+
+        .subcomp-status.active {
+            background: rgba(88, 214, 141, 0.2);
+            color: #58d68d;
+        }
+
+        .subcomp-status.deactivated {
+            background: rgba(245, 176, 65, 0.2);
+            color: #f5b041;
+        }
+
+        .subcomp-content {
+            display: flex;
+            gap: 10px;
+            font-size: 11px;
+        }
+
+        .subcomp-item {
+            background: #0d1117;
+            padding: 6px 10px;
+            border-radius: 4px;
+            color: #aaa;
+        }
+
+        .subcomp-item span {
+            color: #58d68d;
+        }
+
+        /* 复用池 */
+        .reuse-pool {
+            background: #0d1117;
+            border-radius: 8px;
+            padding: 15px;
+            min-height: 100px;
+        }
+
+        .pool-empty {
+            color: #555;
+            font-size: 12px;
+            text-align: center;
+            padding: 20px;
+        }
+
+        /* 日志区 */
+        .log-area {
+            background: #0d1117;
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .log-item {
+            font-size: 11px;
+            padding: 6px 10px;
+            margin-bottom: 4px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .log-item.create {
+            background: rgba(93, 173, 226, 0.1);
+            color: #5dade2;
+        }
+
+        .log-item.activate {
+            background: rgba(88, 214, 141, 0.1);
+            color: #58d68d;
+        }
+
+        .log-item.deactivate {
+            background: rgba(245, 176, 65, 0.1);
+            color: #f5b041;
+        }
+
+        .log-item.dispose {
+            background: rgba(236, 112, 99, 0.1);
+            color: #ec7063;
+        }
+
+        .log-item.reuse {
+            background: rgba(155, 89, 182, 0.1);
+            color: #9b59b6;
+        }
+
+        .log-icon {
+            font-size: 14px;
+        }
+
+        /* 控制区 */
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #00d9ff 0%, #0099ff 100%);
+            color: #000;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 217, 255, 0.4);
+        }
+
+        .btn-secondary {
+            background: #333;
+            color: #aaa;
+        }
+
+        .btn-secondary:hover {
+            background: #444;
+            color: #fff;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* 说明区 */
+        .explanation {
+            background: rgba(0, 217, 255, 0.1);
+            border: 1px solid rgba(0, 217, 255, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 13px;
+            color: #aaa;
+            line-height: 1.6;
+        }
+
+        .explanation strong {
+            color: #00d9ff;
+        }
+
+        /* 步骤指示器 */
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .step-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #333;
+            transition: all 0.3s ease;
+        }
+
+        .step-dot.active {
+            background: #00d9ff;
+            box-shadow: 0 0 10px #00d9ff;
+        }
+
+        .step-dot.completed {
+            background: #58d68d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Subcomposition 生命周期</h2>
+        <p class="subtitle">创建 → 活跃 → 停用 → 释放 的完整生命周期演示</p>
+
+        <div class="step-indicator">
+            <div class="step-dot" id="step0"></div>
+            <div class="step-dot" id="step1"></div>
+            <div class="step-dot" id="step2"></div>
+            <div class="step-dot" id="step3"></div>
+            <div class="step-dot" id="step4"></div>
+            <div class="step-dot" id="step5"></div>
+            <div class="step-dot" id="step6"></div>
+        </div>
+
+        <div class="main-layout">
+            <!-- 状态机图 -->
+            <div class="state-machine">
+                <div class="state-machine-title">生命周期状态机</div>
+                <div class="state-diagram">
+                    <div class="state-box not-exist" id="state-notexist">不存在</div>
+
+                    <div class="arrow" id="arrow-create">
+                        <svg viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" transform="rotate(90 12 12)"/></svg>
+                        <span class="arrow-label">subcompose()</span>
+                    </div>
+
+                    <div class="state-box created" id="state-created">创建</div>
+
+                    <div class="arrow" id="arrow-activate">
+                        <svg viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" transform="rotate(90 12 12)"/></svg>
+                        <span class="arrow-label">首次组合</span>
+                    </div>
+
+                    <div class="state-box active" id="state-active">活跃</div>
+
+                    <div class="arrow" id="arrow-deactivate">
+                        <svg viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" transform="rotate(90 12 12)"/></svg>
+                        <span class="arrow-label">本次未使用</span>
+                    </div>
+
+                    <div class="state-box deactivated" id="state-deactivated">停用</div>
+
+                    <div class="arrow" id="arrow-dispose">
+                        <svg viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" transform="rotate(90 12 12)"/></svg>
+                        <span class="arrow-label">池满/释放</span>
+                    </div>
+
+                    <div class="state-box disposed" id="state-disposed">释放</div>
+                </div>
+            </div>
+
+            <!-- 演示区 -->
+            <div class="demo-area">
+                <div class="demo-title">实时演示</div>
+
+                <div class="composition-view">
+                    <div class="section">
+                        <div class="section-label">活跃的 Subcomposition</div>
+                        <div id="active-list">
+                            <div class="pool-empty">暂无活跃的 Subcomposition</div>
+                        </div>
+                    </div>
+                    <div class="section">
+                        <div class="section-label">复用池（最大容量: 2）</div>
+                        <div class="reuse-pool" id="reuse-pool">
+                            <div class="pool-empty">复用池为空</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-label">操作日志</div>
+                    <div class="log-area" id="log-area"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-primary" id="btn-next">下一步</button>
+            <button class="btn btn-secondary" id="btn-reset">重置</button>
+            <button class="btn btn-secondary" id="btn-auto">自动播放</button>
+        </div>
+
+        <div class="explanation" id="explanation">
+            <strong>💡 点击"下一步"开始演示</strong><br>
+            本演示展示 SubcomposeLayout 中 Subcomposition 的完整生命周期：从创建到活跃、停用、复用、最终释放。
+        </div>
+    </div>
+
+    <script>
+        // 状态管理
+        let currentStep = 0;
+        let autoPlayInterval = null;
+        const maxPoolSize = 2;
+
+        // Subcomposition 数据
+        let activeSubcomps = [];
+        let reusePool = [];
+        let logId = 0;
+
+        const steps = [
+            {
+                action: 'init',
+                explanation: '<strong>💡 初始状态</strong><br>SubcomposeLayout 刚刚创建，还没有任何 Subcomposition。活跃列表和复用池都是空的。'
+            },
+            {
+                action: 'create_A',
+                explanation: '<strong>💡 创建 Subcomposition A</strong><br>调用 subcompose("A", content)，由于缓存中没有 slotId="A" 的 Subcomposition，创建新的。创建过程会分配独立的 SlotTable 和 LayoutNode。'
+            },
+            {
+                action: 'create_B',
+                explanation: '<strong>💡 创建 Subcomposition B</strong><br>调用 subcompose("B", content)，同样创建新的 Subcomposition。现在有两个活跃的 Subcomposition。'
+            },
+            {
+                action: 'deactivate_A',
+                explanation: '<strong>💡 停用 Subcomposition A</strong><br>本次测量不再需要 A，将其停用并放入复用池。注意：SlotTable 和 LayoutNode 被保留，remember 的状态也保留。DisposableEffect 的 onDispose 不会被调用。'
+            },
+            {
+                action: 'create_C',
+                explanation: '<strong>💡 创建 Subcomposition C</strong><br>需要显示新内容，但复用池中没有匹配的 slotId。创建新的 Subcomposition C。'
+            },
+            {
+                action: 'deactivate_B',
+                explanation: '<strong>💡 停用 Subcomposition B</strong><br>B 也不再需要，放入复用池。现在复用池有 A 和 B。'
+            },
+            {
+                action: 'deactivate_C_overflow',
+                explanation: '<strong>💡 停用 C 导致池溢出</strong><br>C 也要停用，但复用池已满（容量=2）。此时会释放最早进入池中的 A：销毁其 SlotTable 和 LayoutNode，触发 DisposableEffect 的 onDispose。然后 C 进入复用池。'
+            }
+        ];
+
+        function updateStateHighlight(state) {
+            document.querySelectorAll('.state-box').forEach(el => el.classList.remove('current'));
+            document.querySelectorAll('.arrow').forEach(el => el.classList.remove('active'));
+
+            if (state) {
+                document.getElementById(`state-${state}`).classList.add('current');
+            }
+        }
+
+        function addLog(type, message) {
+            const logArea = document.getElementById('log-area');
+            const icons = {
+                create: '🆕',
+                activate: '✅',
+                deactivate: '⏸️',
+                dispose: '🗑️',
+                reuse: '♻️'
+            };
+
+            const log = document.createElement('div');
+            log.className = `log-item ${type}`;
+            log.innerHTML = `<span class="log-icon">${icons[type]}</span>${message}`;
+            logArea.insertBefore(log, logArea.firstChild);
+        }
+
+        function renderActiveList() {
+            const container = document.getElementById('active-list');
+            if (activeSubcomps.length === 0) {
+                container.innerHTML = '<div class="pool-empty">暂无活跃的 Subcomposition</div>';
+                return;
+            }
+
+            container.innerHTML = activeSubcomps.map(s => `
+                <div class="subcomposition ${s.animClass || 'active'}">
+                    <div class="subcomp-header">
+                        <span class="subcomp-id">slotId="${s.id}"</span>
+                        <span class="subcomp-status active">活跃</span>
+                    </div>
+                    <div class="subcomp-content">
+                        <div class="subcomp-item">SlotTable: <span>✓</span></div>
+                        <div class="subcomp-item">LayoutNode: <span>✓</span></div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderReusePool() {
+            const container = document.getElementById('reuse-pool');
+            if (reusePool.length === 0) {
+                container.innerHTML = '<div class="pool-empty">复用池为空</div>';
+                return;
+            }
+
+            container.innerHTML = reusePool.map(s => `
+                <div class="subcomposition ${s.animClass || ''}" style="border-color: #f5b041;">
+                    <div class="subcomp-header">
+                        <span class="subcomp-id">slotId="${s.id}"</span>
+                        <span class="subcomp-status deactivated">停用</span>
+                    </div>
+                    <div class="subcomp-content">
+                        <div class="subcomp-item">SlotTable: <span>保留</span></div>
+                        <div class="subcomp-item">状态: <span>保留</span></div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateStepIndicator() {
+            for (let i = 0; i <= 6; i++) {
+                const dot = document.getElementById(`step${i}`);
+                dot.classList.remove('active', 'completed');
+                if (i < currentStep) {
+                    dot.classList.add('completed');
+                } else if (i === currentStep) {
+                    dot.classList.add('active');
+                }
+            }
+        }
+
+        function executeStep() {
+            const step = steps[currentStep];
+            document.getElementById('explanation').innerHTML = step.explanation;
+            updateStepIndicator();
+
+            switch (step.action) {
+                case 'init':
+                    updateStateHighlight('notexist');
+                    break;
+
+                case 'create_A':
+                    updateStateHighlight('created');
+                    document.getElementById('arrow-create').classList.add('active');
+                    setTimeout(() => {
+                        updateStateHighlight('active');
+                        document.getElementById('arrow-activate').classList.add('active');
+                        activeSubcomps.push({ id: 'A', animClass: 'creating' });
+                        renderActiveList();
+                        addLog('create', '创建 Subcomposition A');
+                        addLog('activate', 'A 进入活跃状态');
+                        setTimeout(() => {
+                            activeSubcomps[0].animClass = '';
+                            renderActiveList();
+                        }, 500);
+                    }, 500);
+                    break;
+
+                case 'create_B':
+                    updateStateHighlight('active');
+                    activeSubcomps.push({ id: 'B', animClass: 'creating' });
+                    renderActiveList();
+                    addLog('create', '创建 Subcomposition B');
+                    addLog('activate', 'B 进入活跃状态');
+                    setTimeout(() => {
+                        activeSubcomps[1].animClass = '';
+                        renderActiveList();
+                    }, 500);
+                    break;
+
+                case 'deactivate_A':
+                    updateStateHighlight('deactivated');
+                    document.getElementById('arrow-deactivate').classList.add('active');
+                    const idxA = activeSubcomps.findIndex(s => s.id === 'A');
+                    if (idxA >= 0) {
+                        activeSubcomps[idxA].animClass = 'deactivating';
+                        renderActiveList();
+                        setTimeout(() => {
+                            const removed = activeSubcomps.splice(idxA, 1)[0];
+                            removed.animClass = '';
+                            reusePool.push(removed);
+                            renderActiveList();
+                            renderReusePool();
+                            addLog('deactivate', 'A 停用，放入复用池');
+                        }, 500);
+                    }
+                    break;
+
+                case 'create_C':
+                    updateStateHighlight('active');
+                    activeSubcomps.push({ id: 'C', animClass: 'creating' });
+                    renderActiveList();
+                    addLog('create', '创建 Subcomposition C');
+                    addLog('activate', 'C 进入活跃状态');
+                    setTimeout(() => {
+                        const idx = activeSubcomps.findIndex(s => s.id === 'C');
+                        if (idx >= 0) activeSubcomps[idx].animClass = '';
+                        renderActiveList();
+                    }, 500);
+                    break;
+
+                case 'deactivate_B':
+                    updateStateHighlight('deactivated');
+                    const idxB = activeSubcomps.findIndex(s => s.id === 'B');
+                    if (idxB >= 0) {
+                        activeSubcomps[idxB].animClass = 'deactivating';
+                        renderActiveList();
+                        setTimeout(() => {
+                            const removed = activeSubcomps.splice(idxB, 1)[0];
+                            removed.animClass = '';
+                            reusePool.push(removed);
+                            renderActiveList();
+                            renderReusePool();
+                            addLog('deactivate', 'B 停用，放入复用池');
+                        }, 500);
+                    }
+                    break;
+
+                case 'deactivate_C_overflow':
+                    updateStateHighlight('disposed');
+                    document.getElementById('arrow-dispose').classList.add('active');
+
+                    const idxC = activeSubcomps.findIndex(s => s.id === 'C');
+                    if (idxC >= 0) {
+                        activeSubcomps[idxC].animClass = 'deactivating';
+                        renderActiveList();
+
+                        setTimeout(() => {
+                            // 先释放 A
+                            if (reusePool.length >= maxPoolSize) {
+                                const disposed = reusePool.shift();
+                                addLog('dispose', `复用池已满，释放 ${disposed.id}（SlotTable 销毁，onDispose 触发）`);
+                            }
+
+                            // C 进入复用池
+                            const removedC = activeSubcomps.splice(idxC, 1)[0];
+                            removedC.animClass = '';
+                            reusePool.push(removedC);
+
+                            renderActiveList();
+                            renderReusePool();
+                            addLog('deactivate', 'C 停用，放入复用池');
+                        }, 500);
+                    }
+                    break;
+            }
+        }
+
+        function nextStep() {
+            if (currentStep < steps.length - 1) {
+                currentStep++;
+                executeStep();
+            }
+
+            document.getElementById('btn-next').disabled = currentStep >= steps.length - 1;
+        }
+
+        function reset() {
+            currentStep = 0;
+            activeSubcomps = [];
+            reusePool = [];
+
+            document.getElementById('log-area').innerHTML = '';
+            document.getElementById('btn-next').disabled = false;
+
+            renderActiveList();
+            renderReusePool();
+            updateStepIndicator();
+            executeStep();
+
+            if (autoPlayInterval) {
+                clearInterval(autoPlayInterval);
+                autoPlayInterval = null;
+                document.getElementById('btn-auto').textContent = '自动播放';
+            }
+        }
+
+        function toggleAutoPlay() {
+            const btn = document.getElementById('btn-auto');
+            if (autoPlayInterval) {
+                clearInterval(autoPlayInterval);
+                autoPlayInterval = null;
+                btn.textContent = '自动播放';
+            } else {
+                btn.textContent = '停止播放';
+                autoPlayInterval = setInterval(() => {
+                    if (currentStep < steps.length - 1) {
+                        nextStep();
+                    } else {
+                        clearInterval(autoPlayInterval);
+                        autoPlayInterval = null;
+                        btn.textContent = '自动播放';
+                    }
+                }, 2000);
+            }
+        }
+
+        // 事件绑定
+        document.getElementById('btn-next').addEventListener('click', nextStep);
+        document.getElementById('btn-reset').addEventListener('click', reset);
+        document.getElementById('btn-auto').addEventListener('click', toggleAutoPlay);
+
+        // 初始化
+        reset();
+    </script>
+</body>
+</html>
