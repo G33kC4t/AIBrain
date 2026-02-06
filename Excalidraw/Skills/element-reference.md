@@ -133,7 +133,7 @@
   "height": 50,
   "text": "文本内容",
   "fontSize": 20,
-  "fontFamily": 2,
+  "fontFamily": 5,
   "textAlign": "left",
   "verticalAlign": "top",
   "containerId": null,
@@ -150,7 +150,7 @@
 |------|------|-----|
 | `text` | string | 显示文本（支持 `\n` 换行） |
 | `fontSize` | number | 常用：`16`, `20`, `28`, `36` |
-| `fontFamily` | number | `1`（Virgil）, `2`（Helvetica）, `3`（Cascadia） |
+| `fontFamily` | number | `5`（Excalidraw 默认，**推荐**）, `1`（Virgil）, `2`（Helvetica）, `3`（Cascadia） |
 | `textAlign` | string | `"left"`, `"center"`, `"right"` |
 | `verticalAlign` | string | `"top"`, `"middle"` |
 | `containerId` | string/null | 容器元素 ID（绑定时使用） |
@@ -418,8 +418,8 @@
 
 | 值 | 效果 | 适用场景 |
 |-----|------|----------|
+| `1` | 轻微手绘 | **默认推荐**，保持 Excalidraw 特色 |
 | `0` | 精确线条 | 正式文档、技术规格 |
-| `1` | 轻微手绘 | 默认、平衡外观 |
 | `2` | 明显草图 | 头脑风暴、非正式 |
 
 ### strokeWidth
@@ -434,9 +434,12 @@
 
 | 值 | 字体 | 用途 |
 |-----|------|------|
+| `5` | Excalidraw 默认 | **推荐**，保持手绘风格 |
 | `1` | Virgil（手写） | 休闲、草图 |
 | `2` | Helvetica（无衬线） | 专业、正式 |
 | `3` | Cascadia（等宽） | 代码、技术 |
+
+> **推荐**：使用 `fontFamily: 5` 配合 `roughness: 1`，保持 Excalidraw 的手绘特色。
 
 ### arrowhead
 

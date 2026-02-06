@@ -67,11 +67,14 @@
 
 ### 字体选择
 
-- **Virgil (1)** - 默认手绘风，休闲、友好
-- **Helvetica (2)** - 干净、专业、正式（**推荐**）
-- **Cascadia (3)** - 代码、技术规格、等宽
+| fontFamily | 名称 | 风格 | 适用场景 |
+|------------|------|------|----------|
+| **5** | Excalidraw 默认 | 手写风 | **推荐**，保持 Excalidraw 特色 |
+| **1** | Virgil | 手写风 | 休闲、友好 |
+| **2** | Helvetica | 无衬线 | 正式技术文档 |
+| **3** | Cascadia | 等宽 | 代码、技术规格 |
 
-**注意**：除非要求休闲风格，否则使用 Helvetica。
+**推荐**：使用 `fontFamily: 5`（Excalidraw 默认字体），配合 `roughness: 1`，保持 Excalidraw 的手绘特色风格。
 
 ### 容器内文本
 
@@ -168,11 +171,30 @@
 
 | 值 | 效果 | 适用场景 |
 |-----|------|----------|
+| `1` | 轻微手绘感 | **默认推荐**，保持 Excalidraw 特色 |
 | `0` | 干净、精确线条 | 正式文档、技术规格 |
-| `1` | 轻微手绘感 | 默认、平衡外观 |
 | `2` | 明显草图风 | 头脑风暴、非正式 |
 
-**提示**：所有技术文档使用 `roughness: 0`。
+**推荐**：使用 `roughness: 1` 保持 Excalidraw 的手绘风格特色。
+
+### 手绘风格关键属性
+
+> **重要**：要实现 Excalidraw 的标志性手绘效果，必须正确设置以下两个属性：
+
+| 属性 | 推荐值 | 说明 |
+|------|--------|------|
+| `roughness` | `1` | 控制线条的手绘抖动效果，0=平滑，1=手绘，2=草图 |
+| `fontFamily` | `5` | Excalidraw 默认手写字体，保持风格一致 |
+
+**常见错误**：使用 `roughness: 0` 和 `fontFamily: 2` 会导致图表看起来像普通矢量图，失去 Excalidraw 的特色。
+
+**appState 设置**：在 JSON 的 `appState` 中也应设置默认值：
+```json
+"appState": {
+  "currentItemRoughness": 1,
+  "currentItemFontFamily": 5
+}
+```
 
 ---
 
@@ -195,6 +217,8 @@
 
 ### 干净专业风格
 
+> 注意：此风格会失去 Excalidraw 的手绘特色，仅用于需要正式外观的场景。
+
 ```json
 {
   "strokeColor": "#1e1e1e",
@@ -205,6 +229,22 @@
   "roughness": 0,
   "opacity": 100,
   "fontFamily": 2,
+  "fontSize": 16
+}
+```
+
+### 手绘风格（推荐）
+
+```json
+{
+  "strokeColor": "#1e1e1e",
+  "backgroundColor": "#e9ecef",
+  "fillStyle": "solid",
+  "strokeWidth": 2,
+  "strokeStyle": "solid",
+  "roughness": 1,
+  "opacity": 100,
+  "fontFamily": 5,
   "fontSize": 16
 }
 ```
